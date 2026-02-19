@@ -1,236 +1,248 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>
-<title>GSN WebGIS</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<title>WebGIS Repository Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<style>
-html,body{margin:0;height:100%;}
-#map{height:100%;}
-
-.sidebar{
-position:absolute;
-top:0;
-left:-320px;
-width:300px;
-height:100%;
-background:#111;
-color:white;
-padding:15px;
-overflow:auto;
-transition:.3s;
-z-index:1000;
-}
-.sidebar.active{left:0;}
-
-.toggle-btn{
-position:absolute;
-top:15px;
-left:15px;
-background:white;
-padding:8px 10px;
-border-radius:6px;
-cursor:pointer;
-z-index:1100;
-}
-
-label{display:block;margin:5px 0;cursor:pointer;}
-input[type=checkbox]{margin-right:5px;}
-h3{border-bottom:1px solid #444;padding-bottom:5px;}
-.year{margin-left:15px;}
-</style>
-</head>
-<body>
-
-<div id="map"></div>
-
-<div class="toggle-btn" id="toggleBtn">☰</div>
-
-<div class="sidebar" id="sidebar">
-<h3>Basemap</h3>
-<label><input type="radio" name="base" value="osm" checked> OSM</label>
-<label><input type="radio" name="base" value="google"> Google Satellite</label>
-
-<h3>Layer</h3>
-<div id="layerContainer"></div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
-<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
+<script src="https://unpkg.com/leaflet-kmz@latest/dist/leaflet-kmz.js"></script>
+
+<style>
+body { margin:0; font-family:Arial; }
+
+#map {
+    height:100vh;
+}
+
+#sidebar {
+    position:absolute;
+    left:0;
+    top:0;
+    width:320px;
+    height:100%;
+    background:white;
+    overflow:auto;
+    transition:0.3s;
+    z-index:1000;
+    padding:10px;
+}
+
+#sidebar.hide {
+    left:-300px;
+}
+
+#toggleSidebar {
+    position:absolute;
+    top:10px;
+    left:330px;
+    z-index:1100;
+    background:white;
+    padding:6px 10px;
+    cursor:pointer;
+    border-radius:4px;
+    font-weight:bold;
+}
+
+.searchBox {
+    width:100%;
+    padding:6px;
+    margin-bottom:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <h3>🗂 Layer Repository</h3>
+    <input type="text" id="searchInput" class="searchBox" placeholder="Search layer...">
+    <div id="layerList"></div>
+</div>
+
+<div id="toggleSidebar">☰</div>
+<div id="map"></div>
 
 <script>
 
-/* ================= MAP ================= */
-var indonesiaBounds = [[-11,94],[6,141]];
+// ===============================
+// BATAS INDONESIA
+// ===============================
+const indonesiaBounds = [
+    [-11.5, 94],
+    [6.5, 141]
+];
 
-var map = L.map('map',{
-minZoom:5,
-maxBounds: indonesiaBounds,
-maxBoundsViscosity:1
+var map = L.map('map', {
+    maxBounds: indonesiaBounds,
+    minZoom:5,
+    maxZoom:18
 }).setView([-2.5,118],5);
 
-/* ================= BASEMAP ================= */
-var osm = L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-).addTo(map);
+// ===============================
+// BASEMAP
+// ===============================
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
 
-var google = L.tileLayer(
-'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-{
-maxZoom:20,
-subdomains:['mt0','mt1','mt2','mt3']
+var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{
+    subdomains:['mt0','mt1','mt2','mt3']
 });
 
-document.querySelectorAll('input[name="base"]').forEach(r=>{
-r.addEventListener('change',function(){
-if(this.value==="osm"){
-map.removeLayer(google);
-map.addLayer(osm);
-}else{
-map.removeLayer(osm);
-map.addLayer(google);
-}
-});
-});
+osm.addTo(map);
 
-/* ================= SIDEBAR ================= */
-var sidebar=document.getElementById("sidebar");
-document.getElementById("toggleBtn").onclick=function(){
-sidebar.classList.toggle("active");
+var baseMaps = {
+    "OpenStreetMap": osm,
+    "Google Satellite": googleSat
 };
 
-/* ================= LOAD REPO ================= */
+L.control.layers(baseMaps,null,{position:'topright'}).addTo(map);
 
-var repo="GeoSpatialNusantara/WebGis";
-var container=document.getElementById("layerContainer");
-var layerStore={};
+// ===============================
+// SIDEBAR TOGGLE
+// ===============================
+document.getElementById("toggleSidebar").onclick = function(){
+    document.getElementById("sidebar").classList.toggle("hide");
+};
 
-function loadFolder(url,kategori=null,tahun=null){
+// ===============================
+// GITHUB CONFIG
+// ===============================
+const user = "USERNAME";
+const repo = "REPO";
+const rootFolder = "FOLDER";
 
-fetch(url)
+const apiURL = `https://api.github.com/repos/${user}/${repo}/contents/${rootFolder}`;
+
+let allLayers = {};
+let loadedLayers = {};
+
+function createRadio(name, value, labelText, callback){
+    const label = document.createElement("label");
+    label.style.display="block";
+
+    const input = document.createElement("input");
+    input.type="checkbox";
+    input.value=value;
+    input.onchange=callback;
+
+    label.appendChild(input);
+    label.append(" "+labelText);
+
+    return label;
+}
+
+function loadRepo(){
+
+fetch(apiURL)
 .then(res=>res.json())
-.then(data=>{
+.then(categories=>{
 
-data.forEach(item=>{
+categories.forEach(cat=>{
+if(cat.type==="dir"){
 
-if(item.type==="dir"){
+    const catDiv=document.createElement("div");
+    catDiv.innerHTML="<b>"+cat.name+"</b>";
+    document.getElementById("layerList").appendChild(catDiv);
 
-if(!kategori){
-createKategori(item);
-loadFolder(item.url,item.name,null);
-}else if(!tahun){
-createTahun(item,kategori);
-loadFolder(item.url,kategori,item.name);
+    fetch(cat.url)
+    .then(res=>res.json())
+    .then(years=>{
+
+        years.forEach(year=>{
+        if(year.type==="dir"){
+
+            const yearDiv=document.createElement("div");
+            yearDiv.style.marginLeft="15px";
+            yearDiv.innerHTML="<i>"+year.name+"</i>";
+            document.getElementById("layerList").appendChild(yearDiv);
+
+            fetch(year.url)
+            .then(res=>res.json())
+            .then(files=>{
+
+                files.forEach(file=>{
+                    if(file.name.endsWith(".zip") || file.name.endsWith(".kmz")){
+
+                        const layerId = file.download_url;
+                        allLayers[layerId]=file;
+
+                        const checkbox = createRadio(
+                            "layer",
+                            layerId,
+                            file.name,
+                            function(){
+                                toggleLayer(layerId);
+                            }
+                        );
+
+                        checkbox.style.marginLeft="30px";
+                        checkbox.classList.add("layerItem");
+
+                        document.getElementById("layerList").appendChild(checkbox);
+                    }
+                });
+
+            });
+
+        }
+        });
+
+    });
+
 }
-
-}
-
-if(item.type==="file"){
-if(item.name.endsWith(".zip") || item.name.endsWith(".kmz")){
-prepareFile(item,kategori,tahun);
-}
-}
-
 });
 
 });
-}
-
-function createKategori(folder){
-
-layerStore[folder.name]={};
-
-var label=document.createElement("label");
-var checkbox=document.createElement("checkbox");
-checkbox.type="checkbox";
-
-checkbox.onchange=function(){
-var years=layerStore[folder.name];
-for(var y in years){
-years[y].forEach(layer=>{
-if(this.checked){
-layer.addTo(map);
-}else{
-map.removeLayer(layer);
-}
-});
-}
-};
-
-label.appendChild(checkbox);
-label.append(" "+folder.name);
-container.appendChild(label);
-}
-
-function createTahun(folder,kategori){
-
-layerStore[kategori][folder.name]=[];
-
-var label=document.createElement("label");
-label.className="year";
-
-var checkbox=document.createElement("input");
-checkbox.type="checkbox";
-
-checkbox.onchange=function(){
-layerStore[kategori][folder.name].forEach(layer=>{
-if(this.checked){
-layer.addTo(map);
-}else{
-map.removeLayer(layer);
-}
-});
-};
-
-label.appendChild(checkbox);
-label.append(" "+folder.name);
-container.appendChild(label);
-}
-
-function prepareFile(file,kategori,tahun){
-
-fetch(file.download_url)
-.then(res=>res.arrayBuffer())
-.then(buffer=>{
-
-if(file.name.endsWith(".zip")){
-
-shp(buffer).then(geojson=>{
-var layer=L.geoJSON(geojson,{style:{color:"#00ffff"}});
-layerStore[kategori][tahun].push(layer);
-});
 
 }
 
-if(file.name.endsWith(".kmz")){
+function toggleLayer(url){
 
-JSZip.loadAsync(buffer).then(zip=>{
-zip.forEach(function(relativePath,fileEntry){
-if(relativePath.endsWith(".kml")){
-fileEntry.async("string").then(function(kmlText){
-var parser=new DOMParser();
-var kml=parser.parseFromString(kmlText,"text/xml");
-var geojson=toGeoJSON.kml(kml);
-var layer=L.geoJSON(geojson,{style:{color:"#ffcc00"}});
-layerStore[kategori][tahun].push(layer);
-});
+if(loadedLayers[url]){
+    map.removeLayer(loadedLayers[url]);
+    delete loadedLayers[url];
+    return;
 }
+
+if(url.endsWith(".zip")){
+    shp(url).then(function(data){
+        const layer = L.geoJSON(data).addTo(map);
+        map.fitBounds(layer.getBounds());
+        loadedLayers[url]=layer;
+    });
+}
+
+if(url.endsWith(".kmz")){
+    const kmz = new L.KMZ();
+    kmz.load(url);
+    kmz.on("loaded", function(e){
+        map.fitBounds(e.layer.getBounds());
+    });
+    kmz.addTo(map);
+    loadedLayers[url]=kmz;
+}
+
+}
+
+// ===============================
+// SEARCH
+// ===============================
+document.getElementById("searchInput").addEventListener("keyup", function(){
+let filter = this.value.toLowerCase();
+let items = document.querySelectorAll(".layerItem");
+
+items.forEach(item=>{
+    if(item.innerText.toLowerCase().includes(filter)){
+        item.style.display="";
+    }else{
+        item.style.display="none";
+    }
 });
 });
 
-}
-
-});
-}
-
-loadFolder(`https://api.github.com/repos/${repo}/contents/`);
+loadRepo();
 
 </script>
-
 </body>
 </html>
