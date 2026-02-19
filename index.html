@@ -1,5 +1,5 @@
 // ===============================
-// 4️⃣ LOAD FOLDER + SUBSUBFOLDER (TAHUN)
+// 4️⃣ LOAD FOLDER + SUBFOLDER + TAHUN
 // ===============================
 
 var folderAPI = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents/file";
@@ -10,96 +10,120 @@ fetch(folderAPI)
     if (!res.ok) throw new Error("Folder /file tidak ditemukan");
     return res.json();
 })
-.then(categories => {
+.then(folders => {
 
     let container = document.getElementById("folderList");
 
-    categories.forEach(category => {
+    folders.forEach(folder => {
 
-        if (category.type === "dir") {
+        if (folder.type === "dir") {
 
-            // ===== Folder Utama =====
+            // Judul Folder Utama
             let title = document.createElement("div");
-            title.className = "folder-item";
-            title.style.fontWeight = "bold";
-            title.textContent = category.name;
+            title.innerHTML = "<b>" + folder.name + "</b>";
             container.appendChild(title);
 
-            // ===== Load Subfolder (Tahun) =====
-            fetch(category.url)
-            .then(r => r.json())
-            .then(yearFolders => {
+            // Load Subfolder (Kategori)
+            fetch(folder.url)
+            .then(res => res.json())
+            .then(subfolders => {
 
-                yearFolders.forEach(year => {
+                subfolders.forEach(sub => {
 
-                    if (year.type === "dir") {
+                    if (sub.type === "dir") {
 
-                        let yearDiv = document.createElement("div");
-                        yearDiv.style.marginLeft = "15px";
+                        let subDiv = document.createElement("div");
+                        subDiv.style.marginLeft = "10px";
 
-                        let checkbox = document.createElement("input");
-                        checkbox.type = "checkbox";
+                        let subTitle = document.createElement("div");
+                        subTitle.innerHTML = "📁 " + sub.name;
+                        subDiv.appendChild(subTitle);
 
-                        checkbox.onchange = function() {
+                        // Load Sub-Subfolder (TAHUN)
+                        fetch(sub.url)
+                        .then(res => res.json())
+                        .then(yearFolders => {
 
-                            if (this.checked) {
+                            yearFolders.forEach(year => {
 
-                                fetch(year.url)
-                                .then(r => r.json())
-                                .then(files => {
+                                if (year.type === "dir") {
 
-                                    files.forEach(file => {
+                                    let yearDiv = document.createElement("div");
+                                    yearDiv.style.marginLeft = "20px";
 
-                                        if (file.name.endsWith(".geojson")) {
+                                    let checkbox = document.createElement("input");
+                                    checkbox.type = "checkbox";
 
-                                            fetch(file.download_url)
-                                            .then(r => r.json())
-                                            .then(data => {
+                                    checkbox.onchange = function() {
 
-                                                var geo = L.geoJSON(data, {
-                                                    onEachFeature: function(feature, layer) {
-                                                        if (feature.properties) {
-                                                            layer.bindPopup(
-                                                                Object.entries(feature.properties)
-                                                                .map(([k,v]) => k + ": " + v)
-                                                                .join("<br>")
-                                                            );
-                                                        }
+                                        if (this.checked) {
+
+                                            fetch(year.url)
+                                            .then(res => res.json())
+                                            .then(files => {
+
+                                                files.forEach(file => {
+
+                                                    if (file.name.endsWith(".geojson")) {
+
+                                                        fetch(file.download_url)
+                                                        .then(res => res.json())
+                                                        .then(data => {
+
+                                                            var geoLayer = L.geoJSON(data, {
+                                                                onEachFeature: function(feature, layer) {
+                                                                    if (feature.properties) {
+                                                                        let popup = "";
+                                                                        for (let key in feature.properties) {
+                                                                            popup += key + ": " + feature.properties[key] + "<br>";
+                                                                        }
+                                                                        layer.bindPopup(popup);
+                                                                    }
+                                                                }
+                                                            }).addTo(map);
+
+                                                            if (!activeLayers[year.path]) {
+                                                                activeLayers[year.path] = [];
+                                                            }
+
+                                                            activeLayers[year.path].push(geoLayer);
+
+                                                        });
+
                                                     }
-                                                }).addTo(map);
 
-                                                if (!activeLayers[year.name]) {
-                                                    activeLayers[year.name] = [];
-                                                }
-
-                                                activeLayers[year.name].push(geo);
+                                                });
 
                                             });
 
+                                        } else {
+
+                                            if (activeLayers[year.path]) {
+                                                activeLayers[year.path].forEach(layer => {
+                                                    map.removeLayer(layer);
+                                                });
+                                                delete activeLayers[year.path];
+                                            }
+
                                         }
 
-                                    });
+                                    };
 
-                                });
+                                    yearDiv.appendChild(checkbox);
+                                    yearDiv.appendChild(
+                                        document.createTextNode(" " + year.name)
+                                    );
 
-                            } else {
+                                    subDiv.appendChild(yearDiv);
 
-                                if (activeLayers[year.name]) {
-                                    activeLayers[year.name].forEach(layer => {
-                                        map.removeLayer(layer);
-                                    });
-                                    delete activeLayers[year.name];
                                 }
 
-                            }
-                        };
+                            });
 
-                        yearDiv.appendChild(checkbox);
-                        yearDiv.appendChild(
-                            document.createTextNode(" " + year.name)
-                        );
+                        });
 
-                        container.appendChild(yearDiv);
+                        container.appendChild(subDiv);
+
                     }
 
                 });
