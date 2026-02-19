@@ -3,93 +3,63 @@
 <head>
 <meta charset="utf-8" />
 <title>GSN WebGIS PRO</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
 
 <style>
-html, body {
-    margin: 0;
-    height: 100%;
-    font-family: sans-serif;
-}
+html, body { margin:0; height:100%; font-family:sans-serif; }
+#map { height:100%; }
 
-#map {
-    height: 100%;
-}
-
-/* ========== SIDEBAR ========== */
+/* Sidebar */
 .sidebar {
-    position: absolute;
-    top: 0;
-    left: -300px;
-    width: 260px;
-    height: 100%;
-    background: #111;
-    color: white;
-    padding: 20px;
-    transition: 0.3s ease;
-    z-index: 1000;
+    position:absolute;
+    top:0;
+    left:-300px;
+    width:260px;
+    height:100%;
+    background:#111;
+    color:white;
+    padding:20px;
+    transition:0.3s ease;
+    z-index:1000;
+    overflow:auto;
 }
+.sidebar.active { left:0; }
 
-.sidebar.active {
-    left: 0;
-}
-
-.sidebar h3 {
-    margin-top: 0;
-}
-
-.sidebar label {
-    display: block;
-    margin: 10px 0;
-    cursor: pointer;
-}
-
-/* ========== TOGGLE BUTTON ========== */
 .toggle-btn {
-    position: absolute;
-    top: 15px;
-    left: 15px;
-    background: white;
-    border-radius: 6px;
-    padding: 8px 10px;
-    cursor: pointer;
-    z-index: 1100;
-    font-size: 20px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    position:absolute;
+    top:15px;
+    left:15px;
+    background:white;
+    border-radius:6px;
+    padding:8px 10px;
+    cursor:pointer;
+    z-index:1100;
+    font-size:20px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
 }
 
-/* ========== SEARCH BOX ========== */
+/* Search */
 .search-container {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    z-index: 1100;
-    display: flex;
-    align-items: center;
+    position:absolute;
+    top:15px;
+    right:15px;
+    z-index:1100;
 }
-
 .search-container input {
-    padding: 8px 35px 8px 10px;
-    border-radius: 6px;
-    border: none;
-    width: 220px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    padding:8px 35px 8px 10px;
+    border-radius:6px;
+    border:none;
+    width:250px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
 }
-
 .clear-btn {
-    position: absolute;
-    right: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    color: #555;
-}
-
-.clear-btn:hover {
-    color: red;
+    position:absolute;
+    right:10px;
+    top:8px;
+    cursor:pointer;
 }
 </style>
 </head>
@@ -97,24 +67,19 @@ html, body {
 
 <div id="map"></div>
 
-<!-- Toggle -->
 <div class="toggle-btn" id="toggleBtn">☰</div>
 
-<!-- Sidebar -->
 <div class="sidebar" id="sidebar">
     <h3>Basemap</h3>
     <label><input type="radio" name="basemap" value="osm" checked> OpenStreetMap</label>
-    <label><input type="radio" name="basemap" value="sat"> Satellite (ESRI)</label>
+    <label><input type="radio" name="basemap" value="google"> Google Satellite</label>
 
     <hr>
 
-    <h3>Kategori</h3>
-    <div id="kategoriList">
-        <!-- Auto load kategori -->
-    </div>
+    <h3>Layer</h3>
+    <div id="layerList"></div>
 </div>
 
-<!-- Search -->
 <div class="search-container">
     <input type="text" id="searchInput" placeholder="Cari lokasi...">
     <span class="clear-btn" id="clearBtn">✖</span>
@@ -126,75 +91,109 @@ html, body {
 <script>
 // ================= MAP =================
 var map = L.map('map', {
-    zoomControl: true,
-    scrollWheelZoom: true,
-    smoothWheelZoom: true
-}).setView([-2.5, 118], 5); // Indonesia default
+    zoomControl:false, // zoom button dihapus
+}).setView([-2.5,118],5);
 
 // Basemap
-var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-var sat = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+var osm = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+);
+
+var googleSat = L.tileLayer(
+    'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    {
+        maxZoom:20,
+        subdomains:['mt0','mt1','mt2','mt3']
+    }
 );
 
 osm.addTo(map);
 
-// ================= SIDEBAR TOGGLE =================
+// ================= SIDEBAR =================
 var sidebar = document.getElementById("sidebar");
 var toggleBtn = document.getElementById("toggleBtn");
 
-toggleBtn.onclick = function() {
+toggleBtn.onclick = function(){
     sidebar.classList.add("active");
-    toggleBtn.style.display = "none";
+    toggleBtn.style.display="none";
 };
 
-map.on("click", function() {
+map.on("click", function(){
     sidebar.classList.remove("active");
-    toggleBtn.style.display = "block";
+    toggleBtn.style.display="block";
 });
 
 // ================= BASEMAP SWITCH =================
-document.querySelectorAll('input[name="basemap"]').forEach(function(radio) {
-    radio.addEventListener('change', function() {
-        if (this.value === "osm") {
-            map.removeLayer(sat);
+document.querySelectorAll('input[name="basemap"]').forEach(radio=>{
+    radio.addEventListener('change',function(){
+        map.eachLayer(function(layer){
+            map.removeLayer(layer);
+        });
+        if(this.value==="osm"){
             osm.addTo(map);
         } else {
-            map.removeLayer(osm);
-            sat.addTo(map);
+            googleSat.addTo(map);
         }
     });
 });
 
-// ================= SEARCH =================
+// ================= SEARCH WITH SUGGESTION =================
 var geocoder = L.Control.Geocoder.nominatim();
 
-document.getElementById("searchInput").addEventListener("keydown", function(e) {
-    if (e.key === "Enter") {
-        geocoder.geocode(this.value, function(results) {
-            if (results.length > 0) {
-                map.setView(results[0].center, 13, {animate:true});
+document.getElementById("searchInput").addEventListener("input", function(){
+    var query = this.value;
+    if(query.length > 3){
+        geocoder.geocode(query, function(results){
+            if(results.length > 0){
+                map.setView(results[0].center, 12, {animate:true});
             }
         });
     }
 });
 
-// Clear button
-document.getElementById("clearBtn").onclick = function() {
-    document.getElementById("searchInput").value = "";
+document.getElementById("clearBtn").onclick=function(){
+    document.getElementById("searchInput").value="";
 };
 
-// ================= AUTO LOAD KATEGORI =================
-fetch("https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents/")
-.then(res => res.json())
-.then(data => {
-    const container = document.getElementById("kategoriList");
-    data.forEach(item => {
-        if(item.type === "dir") {
-            const div = document.createElement("div");
-            div.innerHTML = "📁 " + item.name;
-            div.style.margin = "8px 0";
-            container.appendChild(div);
+// ================= AUTO LOAD LAYER DARI GITHUB =================
+var repo = "GeoSpatialNusantara/WebGis";
+
+fetch(`https://api.github.com/repos/${repo}/contents/`)
+.then(res=>res.json())
+.then(data=>{
+    data.forEach(folder=>{
+        if(folder.type==="dir"){
+            fetch(folder.url)
+            .then(res=>res.json())
+            .then(files=>{
+                files.forEach(file=>{
+                    if(file.name.endsWith(".geojson")){
+                        var checkbox=document.createElement("input");
+                        checkbox.type="checkbox";
+
+                        var label=document.createElement("label");
+                        label.style.display="block";
+                        label.appendChild(checkbox);
+                        label.append(" "+file.name);
+
+                        var geoLayer;
+
+                        checkbox.addEventListener("change",function(){
+                            if(this.checked){
+                                fetch(file.download_url)
+                                .then(res=>res.json())
+                                .then(geo=>{
+                                    geoLayer=L.geoJSON(geo).addTo(map);
+                                });
+                            } else {
+                                map.removeLayer(geoLayer);
+                            }
+                        });
+
+                        document.getElementById("layerList").appendChild(label);
+                    }
+                });
+            });
         }
     });
 });
