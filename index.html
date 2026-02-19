@@ -1,200 +1,94 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>WebGIS - Struktur Repository</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
-<style>
-body { margin:0; display:flex; font-family:Arial; }
-
-#sidebar{
-    width:300px;
-    background:#f4f4f4;
-    padding:10px;
-    overflow:auto;
-    border-right:1px solid #ccc;
-}
-
-#map{ flex:1; height:100vh; }
-
-.folder{
-    cursor:pointer;
-    font-weight:bold;
-    margin-top:5px;
-}
-
-.subfolder{
-    margin-left:15px;
-}
-
-.file-item{
-    margin-left:30px;
-}
-
-.hidden{
-    display:none;
-}
-</style>
-</head>
-
-<body>
-
-<div id="sidebar">
-    <h3>Struktur Data</h3>
-    <div id="folderTree"></div>
-</div>
-
-<div id="map"></div>
-
-<script>
-
-// ===============================
-// 1️⃣ BATAS INDONESIA
-// ===============================
-var indonesiaBounds = [
-    [-11.5, 94.5],
-    [6.5, 141.5]
-];
-
-var map = L.map("map",{
-    maxBounds: indonesiaBounds,
-    maxBoundsViscosity:1.0,
-    minZoom:5,
-    maxZoom:18
-}).fitBounds(indonesiaBounds);
-
-// ===============================
-// 2️⃣ BASEMAP (OSM & SATELLITE)
-// ===============================
-var osm = L.tileLayer(
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { attribution:"© OpenStreetMap" }
-).addTo(map);
-
-var satellite = L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    { attribution:"Tiles © Esri" }
-);
-
-L.control.layers({
-    "OpenStreetMap": osm,
-    "Satellite": satellite
-}).addTo(map);
-
-// ===============================
-// 3️⃣ SEARCH
-// ===============================
-L.Control.geocoder({
-    defaultMarkGeocode: true
-}).addTo(map);
-
-// ===============================
-// 4️⃣ LOAD STRUKTUR REPOSITORY
-// ===============================
-const owner = "GeoSpatialNusantara";
-const repo = "WebGis";
-const branch = "main";
-const basePath = "file";
-
-const apiURL = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}?ref=${branch}`;
-
 let activeLayers = {};
+let folderChildren = {};
 
-function createFolder(name){
-    let div = document.createElement("div");
-    div.className = "folder";
-    div.innerHTML = "📁 " + name;
-    return div;
-}
+function createCheckbox(name, level=0){
 
-function createFileCheckbox(name, fileURL){
     let div = document.createElement("div");
-    div.className = "file-item";
+    div.style.marginLeft = (level * 15) + "px";
 
     let checkbox = document.createElement("input");
     checkbox.type = "checkbox";
 
-    checkbox.onchange = function(){
-
-        if(this.checked){
-
-            fetch(fileURL)
-            .then(r=>r.json())
-            .then(data=>{
-                let geo = L.geoJSON(data,{
-                    onEachFeature: function(feature, layer){
-                        if(feature.properties){
-                            layer.bindPopup(
-                                Object.entries(feature.properties)
-                                .map(([k,v]) => k + ": " + v)
-                                .join("<br>")
-                            );
-                        }
-                    }
-                }).addTo(map);
-
-                map.fitBounds(geo.getBounds());
-
-                activeLayers[name] = geo;
-            });
-
-        }else{
-
-            if(activeLayers[name]){
-                map.removeLayer(activeLayers[name]);
-                delete activeLayers[name];
-            }
-        }
-    };
-
     div.appendChild(checkbox);
     div.appendChild(document.createTextNode(" " + name));
 
-    return div;
+    return {div, checkbox};
 }
 
-async function loadFolder(path, container){
+async function loadFolder(path, container, level=0){
 
     const response = await fetch(path);
     const items = await response.json();
 
     for(const item of items){
 
+        // =====================
+        // FOLDER
+        // =====================
         if(item.type === "dir"){
 
-            let folderDiv = createFolder(item.name);
-            container.appendChild(folderDiv);
+            let {div, checkbox} = createCheckbox(item.name, level);
+            container.appendChild(div);
 
             let subContainer = document.createElement("div");
-            subContainer.className = "subfolder hidden";
             container.appendChild(subContainer);
 
-            folderDiv.onclick = function(){
-                subContainer.classList.toggle("hidden");
+            folderChildren[item.name] = [];
+
+            checkbox.onchange = function(){
+
+                subContainer.querySelectorAll("input[type=checkbox]")
+                .forEach(cb => cb.checked = checkbox.checked);
+
+                subContainer.querySelectorAll("input[type=checkbox]")
+                .forEach(cb => cb.dispatchEvent(new Event("change")));
+
             };
 
-            await loadFolder(item.url, subContainer);
+            await loadFolder(item.url, subContainer, level+1);
         }
 
+        // =====================
+        // FILE GEOJSON
+        // =====================
         if(item.type === "file" && item.name.endsWith(".geojson")){
 
-            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${basePath}/${item.path.replace(basePath + '/', '')}`;
+            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${item.path}`;
 
-            let fileDiv = createFileCheckbox(item.name, rawURL);
-            container.appendChild(fileDiv);
+            let {div, checkbox} = createCheckbox(item.name, level);
+            container.appendChild(div);
+
+            checkbox.onchange = function(){
+
+                if(this.checked){
+
+                    fetch(rawURL)
+                    .then(r=>r.json())
+                    .then(data=>{
+                        let geo = L.geoJSON(data,{
+                            onEachFeature: function(feature, layer){
+                                if(feature.properties){
+                                    layer.bindPopup(
+                                        Object.entries(feature.properties)
+                                        .map(([k,v]) => k + ": " + v)
+                                        .join("<br>")
+                                    );
+                                }
+                            }
+                        }).addTo(map);
+
+                        activeLayers[item.path] = geo;
+                        map.fitBounds(geo.getBounds());
+                    });
+
+                }else{
+
+                    if(activeLayers[item.path]){
+                        map.removeLayer(activeLayers[item.path]);
+                        delete activeLayers[item.path];
+                    }
+                }
+            };
         }
     }
 }
-
-loadFolder(apiURL, document.getElementById("folderTree"));
-
-</script>
-
-</body>
-</html>
