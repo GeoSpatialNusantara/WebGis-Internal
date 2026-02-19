@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
 <style>
 body { margin:0; display:flex; font-family:Arial; }
 
@@ -30,8 +33,8 @@ body { margin:0; display:flex; font-family:Arial; }
     margin-left:15px;
 }
 
-.year{
-    margin-left:35px;
+.file-item{
+    margin-left:30px;
 }
 
 .hidden{
@@ -44,7 +47,7 @@ body { margin:0; display:flex; font-family:Arial; }
 
 <div id="sidebar">
     <h3>Struktur Data</h3>
-    <div id="folderTree">Loading...</div>
+    <div id="folderTree"></div>
 </div>
 
 <div id="map"></div>
@@ -67,17 +70,33 @@ var map = L.map("map",{
 }).fitBounds(indonesiaBounds);
 
 // ===============================
-// 2️⃣ BASEMAP
+// 2️⃣ BASEMAP (OSM & SATELLITE)
 // ===============================
-L.tileLayer(
+var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     { attribution:"© OpenStreetMap" }
 ).addTo(map);
 
-// ===============================
-// 3️⃣ LOAD STRUKTUR REPOSITORY
-// ===============================
+var satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { attribution:"Tiles © Esri" }
+);
 
+L.control.layers({
+    "OpenStreetMap": osm,
+    "Satellite": satellite
+}).addTo(map);
+
+// ===============================
+// 3️⃣ SEARCH
+// ===============================
+L.Control.geocoder({
+    defaultMarkGeocode: true
+}).addTo(map);
+
+// ===============================
+// 4️⃣ LOAD STRUKTUR REPOSITORY
+// ===============================
 const owner = "GeoSpatialNusantara";
 const repo = "WebGis";
 const branch = "main";
@@ -94,9 +113,9 @@ function createFolder(name){
     return div;
 }
 
-function createCheckbox(name, fileURL){
+function createFileCheckbox(name, fileURL){
     let div = document.createElement("div");
-    div.className = "year";
+    div.className = "file-item";
 
     let checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -108,7 +127,20 @@ function createCheckbox(name, fileURL){
             fetch(fileURL)
             .then(r=>r.json())
             .then(data=>{
-                let geo = L.geoJSON(data).addTo(map);
+                let geo = L.geoJSON(data,{
+                    onEachFeature: function(feature, layer){
+                        if(feature.properties){
+                            layer.bindPopup(
+                                Object.entries(feature.properties)
+                                .map(([k,v]) => k + ": " + v)
+                                .join("<br>")
+                            );
+                        }
+                    }
+                }).addTo(map);
+
+                map.fitBounds(geo.getBounds());
+
                 activeLayers[name] = geo;
             });
 
@@ -118,7 +150,6 @@ function createCheckbox(name, fileURL){
                 map.removeLayer(activeLayers[name]);
                 delete activeLayers[name];
             }
-
         }
     };
 
@@ -133,7 +164,7 @@ async function loadFolder(path, container){
     const response = await fetch(path);
     const items = await response.json();
 
-    items.forEach(item=>{
+    for(const item of items){
 
         if(item.type === "dir"){
 
@@ -148,27 +179,20 @@ async function loadFolder(path, container){
                 subContainer.classList.toggle("hidden");
             };
 
-            loadFolder(item.url, subContainer);
-
+            await loadFolder(item.url, subContainer);
         }
 
         if(item.type === "file" && item.name.endsWith(".geojson")){
 
-            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${basePath}/${item.name}`;
+            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${basePath}/${item.path.replace(basePath + '/', '')}`;
 
-            let checkboxDiv = createCheckbox(item.name, rawURL);
-            container.appendChild(checkboxDiv);
+            let fileDiv = createFileCheckbox(item.name, rawURL);
+            container.appendChild(fileDiv);
         }
-
-    });
-
+    }
 }
 
-loadFolder(apiURL, document.getElementById("folderTree"))
-.catch(()=>{
-    document.getElementById("folderTree").innerHTML =
-    "Struktur folder tidak ditemukan.";
-});
+loadFolder(apiURL, document.getElementById("folderTree"));
 
 </script>
 
