@@ -1,27 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>
-<title>GSN WebGIS PRO</title>
+<meta charset="utf-8" />
+<title>GSN WebGIS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-html,body{margin:0;height:100%;}
-#map{height:100%;width:100%;}
-.control-box{
-position:absolute;
-top:10px;
-left:10px;
-background:white;
-padding:10px;
-z-index:1000;
-border-radius:6px;
-box-shadow:0 2px 6px rgba(0,0,0,.3);
-font-size:14px;
-max-height:90%;
-overflow:auto;
+html, body {
+    margin: 0;
+    height: 100%;
+}
+#map {
+    height: 100%;
+    width: 100%;
+}
+.control {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: white;
+    padding: 10px;
+    border-radius: 6px;
+    z-index: 1000;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
 }
 </style>
 </head>
@@ -29,134 +32,64 @@ overflow:auto;
 
 <div id="map"></div>
 
-<div class="control-box">
+<div class="control">
 <b>Basemap</b><br>
 <label><input type="radio" name="base" value="osm" checked> OSM</label><br>
 <label><input type="radio" name="base" value="esri"> ESRI Satellite</label>
-
-<hr>
-<b>Layer</b>
-<div id="layerList"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-/* ================= BATAS INDONESIA ================= */
-var indonesiaBounds = L.latLngBounds(
-    L.latLng(-11, 94),
-    L.latLng(6, 141)
-);
+// ================= BATAS INDONESIA =================
+var indonesiaBounds = [
+    [-11, 94],
+    [6, 141]
+];
 
-/* ================= MAP ================= */
-var map = L.map('map',{
-    zoomControl:false,
-    minZoom:5,
+// ================= MAP =================
+var map = L.map('map', {
+    zoomControl: true,
+    minZoom: 5,
     maxBounds: indonesiaBounds,
-    maxBoundsViscosity:1.0
-}).setView([-2.5,118],5);
+    maxBoundsViscosity: 1.0
+}).setView([-2.5, 118], 5);
 
-/* ================= BASEMAP ================= */
-
-// OSM (sudah ada label nama daerah)
+// ================= OSM =================
 var osm = L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{ maxZoom:19 }
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19 }
 ).addTo(map);
 
-// ESRI Satellite
+// ================= ESRI SATELLITE =================
 var esriSat = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{ maxZoom:19 }
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19 }
 );
 
-// ESRI Label (nama daerah)
+// ================= ESRI LABEL =================
 var esriLabel = L.tileLayer(
-'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-{ maxZoom:19 }
+    'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19 }
 );
 
-var currentBase = "osm";
+// ================= SWITCH =================
+document.querySelectorAll('input[name="base"]').forEach(radio => {
+    radio.addEventListener('change', function() {
 
-/* ================= SWITCH BASEMAP ================= */
-document.querySelectorAll('input[name="base"]').forEach(r=>{
-r.addEventListener('change',function(){
+        if (this.value === "osm") {
+            map.removeLayer(esriSat);
+            map.removeLayer(esriLabel);
+            map.addLayer(osm);
+        } else {
+            map.removeLayer(osm);
+            map.addLayer(esriSat);
+            map.addLayer(esriLabel);
+        }
 
-if(this.value==="osm"){
-map.removeLayer(esriSat);
-map.removeLayer(esriLabel);
-map.addLayer(osm);
-currentBase="osm";
-}else{
-map.removeLayer(osm);
-map.addLayer(esriSat);
-map.addLayer(esriLabel);
-currentBase="esri";
-}
-
+    });
 });
-});
-
-/* ================= LOAD GEOJSON REPOSITORY ================= */
-
-var repo = "GeoSpatialNusantara/WebGis";
-var layerList = document.getElementById("layerList");
-var activeLayers = {};
-
-function loadFolder(url){
-fetch(url)
-.then(res=>res.json())
-.then(data=>{
-data.forEach(item=>{
-if(item.type==="dir"){
-loadFolder(item.url); // recursive
-}
-if(item.type==="file" && item.name.endsWith(".geojson")){
-createLayer(item);
-}
-});
-});
-}
-
-function createLayer(file){
-var label=document.createElement("label");
-label.style.display="block";
-
-var checkbox=document.createElement("input");
-checkbox.type="checkbox";
-
-label.appendChild(checkbox);
-label.append(" "+file.name);
-
-checkbox.addEventListener("change",function(){
-
-if(this.checked){
-fetch(file.download_url)
-.then(res=>res.json())
-.then(data=>{
-var geo = L.geoJSON(data,{
-style:{
-color:"#00ffff",
-weight:2
-}
-}).addTo(map);
-
-activeLayers[file.name]=geo;
-
-});
-}else{
-if(activeLayers[file.name]){
-map.removeLayer(activeLayers[file.name]);
-}
-}
-
-});
-
-layerList.appendChild(label);
-}
-
-loadFolder(`https://api.github.com/repos/${repo}/contents/`);
 
 </script>
 
