@@ -1,3 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WebGIS Subfolder from /file</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+<style>
+body { margin:0; display:flex; font-family:Arial; }
+#sidebar {
+    width:250px;
+    background:#f4f4f4;
+    padding:10px;
+    overflow:auto;
+    border-right:1px solid #ccc;
+}
+#map { flex:1; height:100vh; }
+.folder-item { margin-bottom:8px; }
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <h3>Layer Folder (/file)</h3>
+    <div id="folderList"></div>
+</div>
+
+<div id="map"></div>
+
 <script>
 
 // ===============================
@@ -123,3 +158,6 @@ fetch(folderAPI)
 });
 
 </script>
+
+</body>
+</html>
