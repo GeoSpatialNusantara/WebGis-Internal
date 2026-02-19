@@ -2,17 +2,17 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Repository Folder Viewer</title>
+<title>WebGIS Folder Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <style>
 #map { height: 75vh; }
-#folderList { padding:10px; background:#f5f5f5; }
+#fileList { padding:10px; background:#f4f4f4; }
 .file-content {
     white-space: pre-wrap;
     background:#eee;
@@ -27,7 +27,7 @@
 <body>
 
 <h3>Isi Folder Repository</h3>
-<div id="folderList"></div>
+<div id="fileList"></div>
 
 <div id="map"></div>
 
@@ -35,9 +35,9 @@
 
 <script>
 
-// ==========================
-// 1️⃣ BATAS INDONESIA
-// ==========================
+// =============================
+// 1️⃣ BATAS PETA INDONESIA
+// =============================
 var indonesiaBounds = [
     [-11.5, 94.5],
     [6.5, 141.5]
@@ -48,9 +48,9 @@ var map = L.map("map", {
     maxBoundsViscosity: 1.0
 }).fitBounds(indonesiaBounds);
 
-// ==========================
+// =============================
 // 2️⃣ BASEMAP
-// ==========================
+// =============================
 var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     { attribution: "&copy; OpenStreetMap" }
@@ -66,99 +66,92 @@ L.control.layers({
     "Satellite": satellite
 }).addTo(map);
 
-// ==========================
+// =============================
 // 3️⃣ SEARCH
-// ==========================
-L.Control.geocoder().addTo(map);
+// =============================
+L.Control.geocoder({
+    defaultMarkGeocode: true
+}).addTo(map);
 
-// ==========================
-// 4️⃣ AMBIL FOLDER SAJA
-// ==========================
+// =============================
+// 4️⃣ LOAD ISI FOLDER SAJA
+// =============================
+
+// GANTI jika file ada di folder tertentu (misal: data/)
+var folderURL = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
 
 var activeLayers = {};
 
-fetch("https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents")
+fetch(folderURL)
 .then(res => res.json())
-.then(items => {
+.then(files => {
 
-    let container = document.getElementById("folderList");
+    let container = document.getElementById("fileList");
 
-    items.forEach(item => {
+    files.forEach(file => {
 
-        // hanya tampilkan folder (bukan file index.html)
-        if (item.type === "dir") {
+        // ❌ Skip index.html
+        if (file.name.toLowerCase() === "index.html") return;
 
-            let folderTitle = document.createElement("h4");
-            folderTitle.textContent = "Folder: " + item.name;
-            container.appendChild(folderTitle);
+        // ❌ Skip jika type bukan file
+        if (file.type !== "file") return;
 
-            // ambil isi folder
-            fetch(item.url)
-            .then(r => r.json())
-            .then(files => {
+        let label = document.createElement("label");
+        label.style.display = "block";
 
-                files.forEach(file => {
+        let checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
 
-                    let label = document.createElement("label");
-                    label.style.display = "block";
+        checkbox.onchange = function() {
 
-                    let checkbox = document.createElement("input");
-                    checkbox.type = "checkbox";
+            if (this.checked) {
 
-                    checkbox.onchange = function() {
+                fetch(file.download_url)
+                .then(r => r.text())
+                .then(text => {
 
-                        if (this.checked) {
+                    document.getElementById("fileContents").textContent = text;
 
-                            fetch(file.download_url)
-                            .then(r => r.text())
-                            .then(text => {
+                    // Jika GeoJSON → tampilkan ke peta
+                    if (file.name.endsWith(".geojson")) {
 
-                                document.getElementById("fileContents").textContent = text;
-
-                                // tampilkan jika geojson
-                                if (file.name.endsWith(".geojson")) {
-
-                                    var geo = L.geoJSON(JSON.parse(text), {
-                                        onEachFeature: function(feature, layer){
-                                            if (feature.properties){
-                                                layer.bindPopup(
-                                                    JSON.stringify(feature.properties)
-                                                );
-                                            }
-                                        }
-                                    }).addTo(map);
-
-                                    activeLayers[file.name] = geo;
+                        var geo = L.geoJSON(JSON.parse(text), {
+                            onEachFeature: function (feature, layer) {
+                                if (feature.properties) {
+                                    layer.bindPopup(
+                                        Object.entries(feature.properties)
+                                        .map(([k,v]) => k + ": " + v)
+                                        .join("<br>")
+                                    );
                                 }
-
-                            });
-
-                        } else {
-
-                            if (activeLayers[file.name]) {
-                                map.removeLayer(activeLayers[file.name]);
-                                delete activeLayers[file.name];
                             }
+                        }).addTo(map);
 
-                            document.getElementById("fileContents").textContent = "";
-                        }
-                    };
-
-                    label.appendChild(checkbox);
-                    label.appendChild(document.createTextNode(" " + file.name));
-                    container.appendChild(label);
+                        activeLayers[file.name] = geo;
+                    }
 
                 });
 
-            });
+            } else {
 
-        }
+                if (activeLayers[file.name]) {
+                    map.removeLayer(activeLayers[file.name]);
+                    delete activeLayers[file.name];
+                }
+
+                document.getElementById("fileContents").textContent = "";
+            }
+        };
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(" " + file.name));
+        container.appendChild(label);
 
     });
 
 })
 .catch(err => {
-    document.getElementById("folderList").textContent =
+    document.getElementById("fileList").textContent =
         "Gagal memuat folder: " + err;
 });
 
