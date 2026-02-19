@@ -11,33 +11,34 @@
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <style>
-#map { height: 75vh; }
-#fileList { padding:10px; background:#f4f4f4; }
-.file-content {
-    white-space: pre-wrap;
-    background:#eee;
+body { margin:0; display:flex; font-family:Arial; }
+#sidebar {
+    width:250px;
+    background:#f4f4f4;
     padding:10px;
-    margin-top:10px;
-    max-height:200px;
     overflow:auto;
+    border-right:1px solid #ccc;
 }
+#map { flex:1; height:100vh; }
+.folder { font-weight:bold; margin-top:10px; }
+.file { margin-left:15px; }
 </style>
 </head>
 
 <body>
 
-<h3>Isi Folder Repository</h3>
-<div id="fileList"></div>
+<div id="sidebar">
+    <h3>Folder Repository</h3>
+    <div id="folderList"></div>
+</div>
 
 <div id="map"></div>
 
-<div id="fileContents" class="file-content"></div>
-
 <script>
 
-// =============================
-// 1️⃣ BATAS PETA INDONESIA
-// =============================
+// ============================
+// 1️⃣ BATAS INDONESIA
+// ============================
 var indonesiaBounds = [
     [-11.5, 94.5],
     [6.5, 141.5]
@@ -48,17 +49,17 @@ var map = L.map("map", {
     maxBoundsViscosity: 1.0
 }).fitBounds(indonesiaBounds);
 
-// =============================
+// ============================
 // 2️⃣ BASEMAP
-// =============================
+// ============================
 var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { attribution: "&copy; OpenStreetMap" }
+    { attribution:"© OpenStreetMap" }
 ).addTo(map);
 
 var satellite = L.tileLayer(
     "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    { attribution: "Satellite" }
+    { attribution:"Satellite" }
 );
 
 L.control.layers({
@@ -66,93 +67,115 @@ L.control.layers({
     "Satellite": satellite
 }).addTo(map);
 
-// =============================
+// ============================
 // 3️⃣ SEARCH
-// =============================
-L.Control.geocoder({
-    defaultMarkGeocode: true
-}).addTo(map);
+// ============================
+L.Control.geocoder().addTo(map);
 
-// =============================
-// 4️⃣ LOAD ISI FOLDER SAJA
-// =============================
+// ============================
+// 4️⃣ LOAD FOLDER DARI GITHUB
+// ============================
 
-// GANTI jika file ada di folder tertentu (misal: data/)
-var folderURL = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
-
+var repoAPI = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
 var activeLayers = {};
 
-fetch(folderURL)
+fetch(repoAPI)
 .then(res => res.json())
-.then(files => {
+.then(items => {
 
-    let container = document.getElementById("fileList");
+    let container = document.getElementById("folderList");
 
-    files.forEach(file => {
+    items.forEach(item => {
 
-        // ❌ Skip index.html
-        if (file.name.toLowerCase() === "index.html") return;
+        // Tampilkan hanya folder
+        if (item.type === "dir") {
 
-        // ❌ Skip jika type bukan file
-        if (file.type !== "file") return;
+            let folderDiv = document.createElement("div");
+            folderDiv.className = "folder";
 
-        let label = document.createElement("label");
-        label.style.display = "block";
+            let checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
 
-        let checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
+            let label = document.createElement("span");
+            label.textContent = " " + item.name;
 
-        checkbox.onchange = function() {
+            folderDiv.appendChild(checkbox);
+            folderDiv.appendChild(label);
+            container.appendChild(folderDiv);
 
-            if (this.checked) {
+            let fileContainer = document.createElement("div");
+            container.appendChild(fileContainer);
 
-                fetch(file.download_url)
-                .then(r => r.text())
-                .then(text => {
+            checkbox.onchange = function() {
 
-                    document.getElementById("fileContents").textContent = text;
+                if (this.checked) {
 
-                    // Jika GeoJSON → tampilkan ke peta
-                    if (file.name.endsWith(".geojson")) {
+                    fetch(item.url)
+                    .then(r => r.json())
+                    .then(files => {
 
-                        var geo = L.geoJSON(JSON.parse(text), {
-                            onEachFeature: function (feature, layer) {
-                                if (feature.properties) {
-                                    layer.bindPopup(
-                                        Object.entries(feature.properties)
-                                        .map(([k,v]) => k + ": " + v)
-                                        .join("<br>")
-                                    );
+                        files.forEach(file => {
+
+                            if (file.type !== "file") return;
+
+                            let fileDiv = document.createElement("div");
+                            fileDiv.className = "file";
+
+                            let fileCheck = document.createElement("input");
+                            fileCheck.type = "checkbox";
+
+                            fileCheck.onchange = function() {
+
+                                if (this.checked && file.name.endsWith(".geojson")) {
+
+                                    fetch(file.download_url)
+                                    .then(r => r.json())
+                                    .then(data => {
+
+                                        var geo = L.geoJSON(data, {
+                                            onEachFeature: function(feature, layer) {
+                                                if (feature.properties) {
+                                                    layer.bindPopup(
+                                                        Object.entries(feature.properties)
+                                                        .map(([k,v]) => k + ": " + v)
+                                                        .join("<br>")
+                                                    );
+                                                }
+                                            }
+                                        }).addTo(map);
+
+                                        activeLayers[file.name] = geo;
+                                    });
+                                } else {
+                                    if (activeLayers[file.name]) {
+                                        map.removeLayer(activeLayers[file.name]);
+                                        delete activeLayers[file.name];
+                                    }
                                 }
-                            }
-                        }).addTo(map);
+                            };
 
-                        activeLayers[file.name] = geo;
-                    }
+                            fileDiv.appendChild(fileCheck);
+                            fileDiv.appendChild(
+                                document.createTextNode(" " + file.name)
+                            );
 
-                });
+                            fileContainer.appendChild(fileDiv);
+                        });
 
-            } else {
+                    });
 
-                if (activeLayers[file.name]) {
-                    map.removeLayer(activeLayers[file.name]);
-                    delete activeLayers[file.name];
+                } else {
+                    fileContainer.innerHTML = "";
                 }
-
-                document.getElementById("fileContents").textContent = "";
-            }
-        };
-
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(" " + file.name));
-        container.appendChild(label);
+            };
+        }
 
     });
 
 })
 .catch(err => {
-    document.getElementById("fileList").textContent =
-        "Gagal memuat folder: " + err;
+    document.getElementById("folderList").textContent =
+        "Gagal memuat repository.";
 });
 
 </script>
