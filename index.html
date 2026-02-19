@@ -2,94 +2,78 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>WebGIS Interaktif</title>
+    <title>WebGIS Viewer</title>
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        #map { height: 90vh; width: 100%; }
-        .checkbox-list { padding: 10px;}
+        #map { height: 80vh; width: 100%; }
+        #fileList { padding: 10px; background: #f8f8f8; }
+        .file-content { white-space: pre-wrap; background: #eee; padding: 10px; margin-top:1em; }
     </style>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <!-- Leaflet Search Plugin (untuk pencarian lokasi) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 </head>
 <body>
 
-<div class="checkbox-list">
-    <!-- Checkbox untuk layer data -->
-    <label><input type="checkbox" id="cb_roads"> Roads</label>
-    <label><input type="checkbox" id="cb_points"> Points</label>
-    <label><input type="checkbox" id="cb_polygons"> Polygons</label>
-</div>
+<h3>Daftar Isi Repository</h3>
+<div id="fileList"></div>
 
 <div id="map"></div>
 
-<script>
-// 1. Inisialisasi Map
-var map = L.map('map').setView([-6.9, 107.6], 11);
+<div id="fileContents" class="file-content"></div>
 
-// 2. Dua Basemap
-var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution: '&copy; OpenStreetMap contributors'
+<script>
+
+// 1) Inisialisasi peta
+var map = L.map("map").setView([-6.9, 107.6], 11);
+
+// 2) Basemap OSM
+var osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors"
 }).addTo(map);
 
-var satellite = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
-    attribution: '&copy; Satellite layer'
+// 3) Basemap Satellite
+var satellite = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; Satellite tiles"
 });
 
-// 3. Kontrol basemap
-var baseMaps = {
+// layer switcher
+L.control.layers({
     "OpenStreetMap": osm,
     "Satellite": satellite
-};
-L.control.layers(baseMaps).addTo(map);
-
-// 4. Layer kosong untuk file-file data
-var layerRoads = L.layerGroup().addTo(map);
-var layerPoints = L.layerGroup().addTo(map);
-var layerPolygons = L.layerGroup().addTo(map);
-
-// 5. Load data GeoJSON
-function loadGeoJSON(url, layerGroup){
-    fetch(url)
-    .then(res => res.json())
-    .then(data => L.geoJSON(data).addTo(layerGroup));
-}
-
-// 6. Checkbox toggles
-document.getElementById('cb_roads').addEventListener('change', function() {
-    if(this.checked) {
-        loadGeoJSON('data/roads.geojson', layerRoads);
-    } else {
-        map.removeLayer(layerRoads);
-        layerRoads.clearLayers();
-    }
-});
-document.getElementById('cb_points').addEventListener('change', function() {
-    if(this.checked) {
-        loadGeoJSON('data/points.geojson', layerPoints);
-    } else {
-        map.removeLayer(layerPoints);
-        layerPoints.clearLayers();
-    }
-});
-document.getElementById('cb_polygons').addEventListener('change', function() {
-    if(this.checked) {
-        loadGeoJSON('data/polygons.geojson', layerPolygons);
-    } else {
-        map.removeLayer(layerPolygons);
-        layerPolygons.clearLayers();
-    }
-});
-
-// 7. Search control (Leaflet Geocoder)
-L.Control.geocoder({
-    defaultMarkGeocode: true
 }).addTo(map);
+
+// 4) Geocoder Search
+L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
+
+// 5) Ambil daftar file dari GitHub API
+fetch("https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents")
+.then(resp => resp.json())
+.then(files => {
+    let container = document.getElementById("fileList");
+
+    files.forEach(f => {
+        // buat link setiap file
+        const link = document.createElement("a");
+        link.href = "#";
+        link.textContent = f.name;
+        link.style.display = "block";
+        link.onclick = function() {
+            // tampilkan isi file
+            fetch(f.download_url)
+            .then(r => r.text())
+            .then(txt => {
+                document.getElementById("fileContents").textContent = txt;
+            });
+        };
+        container.appendChild(link);
+    });
+})
+.catch(err => {
+    document.getElementById("fileList").textContent = "Gagal memuat daftar file: " + err;
+});
 
 </script>
 </body>
