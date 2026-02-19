@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Folder Viewer</title>
+<title>WebGIS Recursive Folder Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -13,32 +13,33 @@
 <style>
 body { margin:0; display:flex; font-family:Arial; }
 #sidebar {
-    width:250px;
+    width:280px;
     background:#f4f4f4;
     padding:10px;
     overflow:auto;
     border-right:1px solid #ccc;
 }
 #map { flex:1; height:100vh; }
-.folder { font-weight:bold; margin-top:10px; }
-.file { margin-left:15px; }
+.folder { font-weight:bold; cursor:pointer; margin-top:8px; }
+.file { margin-left:20px; }
+.subfolder { margin-left:15px; }
 </style>
 </head>
 
 <body>
 
 <div id="sidebar">
-    <h3>Folder Repository</h3>
-    <div id="folderList"></div>
+    <h3>Repository Structure</h3>
+    <div id="tree"></div>
 </div>
 
 <div id="map"></div>
 
 <script>
 
-// ============================
+// ===============================
 // 1️⃣ BATAS INDONESIA
-// ============================
+// ===============================
 var indonesiaBounds = [
     [-11.5, 94.5],
     [6.5, 141.5]
@@ -46,12 +47,14 @@ var indonesiaBounds = [
 
 var map = L.map("map", {
     maxBounds: indonesiaBounds,
-    maxBoundsViscosity: 1.0
+    maxBoundsViscosity: 1.0,
+    minZoom: 5,
+    maxZoom: 18
 }).fitBounds(indonesiaBounds);
 
-// ============================
+// ===============================
 // 2️⃣ BASEMAP
-// ============================
+// ===============================
 var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     { attribution:"© OpenStreetMap" }
@@ -67,116 +70,108 @@ L.control.layers({
     "Satellite": satellite
 }).addTo(map);
 
-// ============================
+// ===============================
 // 3️⃣ SEARCH
-// ============================
+// ===============================
 L.Control.geocoder().addTo(map);
 
-// ============================
-// 4️⃣ LOAD FOLDER DARI GITHUB
-// ============================
+// ===============================
+// 4️⃣ LOAD REPOSITORY RECURSIVE
+// ===============================
 
-var repoAPI = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
+var repoRoot = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
 var activeLayers = {};
 
-fetch(repoAPI)
-.then(res => res.json())
-.then(items => {
+function loadFolder(url, container) {
 
-    let container = document.getElementById("folderList");
+    fetch(url)
+    .then(res => res.json())
+    .then(items => {
 
-    items.forEach(item => {
+        items.forEach(item => {
 
-        // Tampilkan hanya folder
-        if (item.type === "dir") {
+            // Skip index.html
+            if (item.name.toLowerCase() === "index.html") return;
 
-            let folderDiv = document.createElement("div");
-            folderDiv.className = "folder";
+            if (item.type === "dir") {
 
-            let checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
+                let folderDiv = document.createElement("div");
+                folderDiv.className = "folder";
+                folderDiv.textContent = "📁 " + item.name;
 
-            let label = document.createElement("span");
-            label.textContent = " " + item.name;
+                let subContainer = document.createElement("div");
+                subContainer.className = "subfolder";
+                subContainer.style.display = "none";
 
-            folderDiv.appendChild(checkbox);
-            folderDiv.appendChild(label);
-            container.appendChild(folderDiv);
+                folderDiv.onclick = function() {
+                    subContainer.style.display =
+                        subContainer.style.display === "none" ? "block" : "none";
+                };
 
-            let fileContainer = document.createElement("div");
-            container.appendChild(fileContainer);
+                container.appendChild(folderDiv);
+                container.appendChild(subContainer);
 
-            checkbox.onchange = function() {
+                // Recursive call
+                loadFolder(item.url, subContainer);
 
-                if (this.checked) {
+            }
 
-                    fetch(item.url)
-                    .then(r => r.json())
-                    .then(files => {
+            if (item.type === "file") {
 
-                        files.forEach(file => {
+                let fileDiv = document.createElement("div");
+                fileDiv.className = "file";
 
-                            if (file.type !== "file") return;
+                let checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
 
-                            let fileDiv = document.createElement("div");
-                            fileDiv.className = "file";
+                checkbox.onchange = function() {
 
-                            let fileCheck = document.createElement("input");
-                            fileCheck.type = "checkbox";
+                    if (this.checked && item.name.endsWith(".geojson")) {
 
-                            fileCheck.onchange = function() {
+                        fetch(item.download_url)
+                        .then(r => r.json())
+                        .then(data => {
 
-                                if (this.checked && file.name.endsWith(".geojson")) {
-
-                                    fetch(file.download_url)
-                                    .then(r => r.json())
-                                    .then(data => {
-
-                                        var geo = L.geoJSON(data, {
-                                            onEachFeature: function(feature, layer) {
-                                                if (feature.properties) {
-                                                    layer.bindPopup(
-                                                        Object.entries(feature.properties)
-                                                        .map(([k,v]) => k + ": " + v)
-                                                        .join("<br>")
-                                                    );
-                                                }
-                                            }
-                                        }).addTo(map);
-
-                                        activeLayers[file.name] = geo;
-                                    });
-                                } else {
-                                    if (activeLayers[file.name]) {
-                                        map.removeLayer(activeLayers[file.name]);
-                                        delete activeLayers[file.name];
+                            var geo = L.geoJSON(data, {
+                                onEachFeature: function(feature, layer) {
+                                    if (feature.properties) {
+                                        layer.bindPopup(
+                                            Object.entries(feature.properties)
+                                            .map(([k,v]) => k + ": " + v)
+                                            .join("<br>")
+                                        );
                                     }
                                 }
-                            };
+                            }).addTo(map);
 
-                            fileDiv.appendChild(fileCheck);
-                            fileDiv.appendChild(
-                                document.createTextNode(" " + file.name)
-                            );
-
-                            fileContainer.appendChild(fileDiv);
+                            activeLayers[item.name] = geo;
                         });
 
-                    });
+                    } else {
 
-                } else {
-                    fileContainer.innerHTML = "";
-                }
-            };
-        }
+                        if (activeLayers[item.name]) {
+                            map.removeLayer(activeLayers[item.name]);
+                            delete activeLayers[item.name];
+                        }
+
+                    }
+                };
+
+                fileDiv.appendChild(checkbox);
+                fileDiv.appendChild(
+                    document.createTextNode(" 📄 " + item.name)
+                );
+
+                container.appendChild(fileDiv);
+            }
+
+        });
 
     });
+}
 
-})
-.catch(err => {
-    document.getElementById("folderList").textContent =
-        "Gagal memuat repository.";
-});
+// Load root
+loadFolder(repoRoot, document.getElementById("tree"));
 
 </script>
 
