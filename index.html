@@ -1,3 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WebGIS - Struktur Repository</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+<style>
+body { margin:0; display:flex; font-family:Arial; }
+
+#sidebar{
+    width:300px;
+    background:#f4f4f4;
+    padding:10px;
+    overflow:auto;
+    border-right:1px solid #ccc;
+}
+
+#map{ flex:1; height:100vh; }
+
+.folder{
+    cursor:pointer;
+    font-weight:bold;
+    margin-top:5px;
+}
+
+.subfolder{
+    margin-left:15px;
+}
+
+.file-item{
+    margin-left:30px;
+}
+
+.hidden{
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <h3>Struktur Data</h3>
+    <div id="folderTree"></div>
+</div>
+
+<div id="map"></div>
+    
 <script>
 
 // ===============================
@@ -111,3 +165,5 @@ async function loadFolder(path, container, level=0){
 loadFolder(apiURL, document.getElementById("folderTree"));
 
 </script>
+</body>
+</html>
