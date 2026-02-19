@@ -1,47 +1,26 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>WebGIS Folder Structure</title>
+<meta charset="utf-8">
+<title>WebGIS Subfolder from /file</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
 <style>
-body {
-    margin: 0;
-    display: flex;
-    font-family: Arial, sans-serif;
-}
-
+body { margin:0; display:flex; font-family:Arial; }
 #sidebar {
-    width: 280px;
-    background: #f4f4f4;
-    padding: 10px;
-    overflow-y: auto;
-    border-right: 1px solid #ccc;
+    width:250px;
+    background:#f4f4f4;
+    padding:10px;
+    overflow:auto;
+    border-right:1px solid #ccc;
 }
-
-#map {
-    flex: 1;
-    height: 100vh;
-}
-
-.folder-title {
-    font-weight: bold;
-    margin-top: 10px;
-}
-
-.subfolder {
-    margin-left: 15px;
-}
-
-.year {
-    margin-left: 30px;
-}
+#map { flex:1; height:100vh; }
+.folder-item { margin-bottom:8px; }
 </style>
 </head>
 
@@ -49,7 +28,7 @@ body {
 
 <div id="sidebar">
     <h3>Layer Folder (/file)</h3>
-    <div id="folderList">Loading...</div>
+    <div id="folderList"></div>
 </div>
 
 <div id="map"></div>
@@ -57,139 +36,141 @@ body {
 <script>
 
 // ===============================
-// 4. LOAD STRUKTUR FOLDER → SUBFOLDER → TAHUN
+// 1️⃣ BATAS INDONESIA
+// ===============================
+var indonesiaBounds = [
+    [-11.5, 94.5],
+    [6.5, 141.5]
+];
+
+var map = L.map("map", {
+    maxBounds: indonesiaBounds,
+    maxBoundsViscosity: 1.0,
+    minZoom: 5,
+    maxZoom: 18
+}).fitBounds(indonesiaBounds);
+
+// ===============================
+// 2️⃣ BASEMAP
+// ===============================
+var osm = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { attribution:"© OpenStreetMap" }
+).addTo(map);
+
+var satellite = L.tileLayer(
+    "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    { attribution:"Satellite" }
+);
+
+L.control.layers({
+    "OpenStreetMap": osm,
+    "Satellite": satellite
+}).addTo(map);
+
+// ===============================
+// 3️⃣ SEARCH
+// ===============================
+L.Control.geocoder().addTo(map);
+
+// ===============================
+// 4️⃣ LOAD HANYA SUBFOLDER DI /file
 // ===============================
 
+// Path API ke folder "file"
 var folderAPI = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents/file";
 var activeLayers = {};
-var container = document.getElementById("folderList");
 
 fetch(folderAPI)
-.then(res => res.json())
-.then(function(folders) {
+.then(res => {
+    if (!res.ok) throw new Error("Folder /file tidak ditemukan");
+    return res.json();
+})
+.then(items => {
 
-    container.innerHTML = "";
+    let container = document.getElementById("folderList");
 
-    folders.forEach(function(folder) {
+    items.forEach(item => {
 
-        if (folder.type === "dir") {
+        // Tampilkan hanya subfolder
+        if (item.type === "dir") {
 
-            // ===== FOLDER UTAMA =====
-            var folderTitle = document.createElement("div");
-            folderTitle.style.fontWeight = "bold";
-            folderTitle.style.marginTop = "10px";
-            folderTitle.textContent = folder.name;
-            container.appendChild(folderTitle);
+            let div = document.createElement("div");
+            div.className = "folder-item";
 
-            fetch(folder.url)
-            .then(res => res.json())
-            .then(function(subfolders) {
+            let checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
 
-                subfolders.forEach(function(sub) {
+            checkbox.onchange = function() {
 
-                    if (sub.type === "dir") {
+                if (this.checked) {
 
-                        // ===== SUBFOLDER =====
-                        var subDiv = document.createElement("div");
-                        subDiv.style.marginLeft = "15px";
-                        subDiv.textContent = "📁 " + sub.name;
-                        container.appendChild(subDiv);
+                    fetch(item.url)
+                    .then(r => r.json())
+                    .then(files => {
 
-                        fetch(sub.url)
-                        .then(res => res.json())
-                        .then(function(yearFolders) {
+                        files.forEach(file => {
 
-                            yearFolders.forEach(function(year) {
+                            if (file.name.endsWith(".geojson")) {
 
-                                if (year.type === "dir") {
+                                fetch(file.download_url)
+                                .then(r => r.json())
+                                .then(data => {
 
-                                    var yearDiv = document.createElement("div");
-                                    yearDiv.style.marginLeft = "30px";
-
-                                    var checkbox = document.createElement("input");
-                                    checkbox.type = "checkbox";
-
-                                    checkbox.addEventListener("change", function() {
-
-                                        if (this.checked) {
-
-                                            fetch(year.url)
-                                            .then(res => res.json())
-                                            .then(function(files) {
-
-                                                files.forEach(function(file) {
-
-                                                    if (file.name.endsWith(".geojson")) {
-
-                                                        fetch(file.download_url)
-                                                        .then(res => res.json())
-                                                        .then(function(data) {
-
-                                                            var layer = L.geoJSON(data, {
-                                                                onEachFeature: function(feature, layer) {
-                                                                    if (feature.properties) {
-                                                                        var popup = "";
-                                                                        for (var key in feature.properties) {
-                                                                            popup += key + ": " + feature.properties[key] + "<br>";
-                                                                        }
-                                                                        layer.bindPopup(popup);
-                                                                    }
-                                                                }
-                                                            }).addTo(map);
-
-                                                            if (!activeLayers[year.path]) {
-                                                                activeLayers[year.path] = [];
-                                                            }
-
-                                                            activeLayers[year.path].push(layer);
-
-                                                        });
-
-                                                    }
-
-                                                });
-
-                                            });
-
-                                        } else {
-
-                                            if (activeLayers[year.path]) {
-                                                activeLayers[year.path].forEach(function(layer) {
-                                                    map.removeLayer(layer);
-                                                });
-                                                delete activeLayers[year.path];
+                                    var geo = L.geoJSON(data, {
+                                        onEachFeature: function(feature, layer) {
+                                            if (feature.properties) {
+                                                layer.bindPopup(
+                                                    Object.entries(feature.properties)
+                                                    .map(([k,v]) => k + ": " + v)
+                                                    .join("<br>")
+                                                );
                                             }
-
                                         }
+                                    }).addTo(map);
 
-                                    });
+                                    if (!activeLayers[item.name]) {
+                                        activeLayers[item.name] = [];
+                                    }
 
-                                    yearDiv.appendChild(checkbox);
-                                    yearDiv.appendChild(
-                                        document.createTextNode(" " + year.name)
-                                    );
+                                    activeLayers[item.name].push(geo);
 
-                                    container.appendChild(yearDiv);
+                                });
 
-                                }
-
-                            });
+                            }
 
                         });
 
+                    });
+
+                } else {
+
+                    if (activeLayers[item.name]) {
+
+                        activeLayers[item.name].forEach(layer => {
+                            map.removeLayer(layer);
+                        });
+
+                        delete activeLayers[item.name];
                     }
 
-                });
+                }
+            };
 
-            });
+            div.appendChild(checkbox);
+            div.appendChild(
+                document.createTextNode(" " + item.name)
+            );
 
+            container.appendChild(div);
         }
 
     });
 
 })
-.catch(function(error) {
-    container.innerHTML = "Struktur folder tidak ditemukan.";
+.catch(err => {
+    document.getElementById("folderList").textContent =
+        "Folder /file tidak ditemukan atau kosong.";
 });
 
 </script>
