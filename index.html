@@ -1,23 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>WebGIS Viewer</title>
+<meta charset="utf-8">
+<title>WebGIS Repository Viewer</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <style>
-        #map { height: 80vh; width: 100%; }
-        #fileList { padding: 10px; background: #f8f8f8; }
-        .file-content { white-space: pre-wrap; background: #eee; padding: 10px; margin-top:1em; }
-    </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+<style>
+#map { height: 75vh; }
+#fileList { padding:10px; background:#f4f4f4; }
+.file-content {
+    white-space: pre-wrap;
+    background:#eee;
+    padding:10px;
+    margin-top:10px;
+    max-height:200px;
+    overflow:auto;
+}
+</style>
 </head>
+
 <body>
 
-<h3>Daftar Isi Repository</h3>
+<h3>Daftar File Repository</h3>
 <div id="fileList"></div>
 
 <div id="map"></div>
@@ -26,55 +35,114 @@
 
 <script>
 
-// 1) Inisialisasi peta
-var map = L.map("map").setView([-6.9, 107.6], 11);
+// ========================
+// 1️⃣ BATAS INDONESIA
+// ========================
+var indonesiaBounds = [
+    [-11.5, 94.5],
+    [6.5, 141.5]
+];
 
-// 2) Basemap OSM
+var map = L.map("map", {
+    maxBounds: indonesiaBounds,
+    maxBoundsViscosity: 1.0
+}).fitBounds(indonesiaBounds);
+
+// ========================
+// 2️⃣ BASEMAP
+// ========================
 var osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors"
+    attribution: "&copy; OpenStreetMap"
 }).addTo(map);
 
-// 3) Basemap Satellite
-var satellite = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; Satellite tiles"
-});
+var satellite = L.tileLayer(
+    "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    { attribution: "Satellite" }
+);
 
-// layer switcher
 L.control.layers({
     "OpenStreetMap": osm,
     "Satellite": satellite
 }).addTo(map);
 
-// 4) Geocoder Search
-L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
+// ========================
+// 3️⃣ SEARCH
+// ========================
+L.Control.geocoder({
+    defaultMarkGeocode: true
+}).addTo(map);
 
-// 5) Ambil daftar file dari GitHub API
+// ========================
+// 4️⃣ LOAD FILE REPOSITORY
+// ========================
+var activeLayers = {};
+
 fetch("https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents")
-.then(resp => resp.json())
+.then(res => res.json())
 .then(files => {
+
     let container = document.getElementById("fileList");
 
-    files.forEach(f => {
-        // buat link setiap file
-        const link = document.createElement("a");
-        link.href = "#";
-        link.textContent = f.name;
-        link.style.display = "block";
-        link.onclick = function() {
-            // tampilkan isi file
-            fetch(f.download_url)
-            .then(r => r.text())
-            .then(txt => {
-                document.getElementById("fileContents").textContent = txt;
-            });
+    files.forEach(file => {
+
+        // Buat checkbox
+        let label = document.createElement("label");
+        label.style.display = "block";
+
+        let checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+
+        checkbox.onchange = function() {
+
+            if (this.checked) {
+
+                // tampilkan isi file
+                fetch(file.download_url)
+                .then(r => r.text())
+                .then(text => {
+                    document.getElementById("fileContents").textContent = text;
+
+                    // jika geojson → tampilkan ke peta
+                    if (file.name.endsWith(".geojson")) {
+                        var geo = L.geoJSON(JSON.parse(text), {
+                            onEachFeature: function (feature, layer) {
+                                if (feature.properties) {
+                                    layer.bindPopup(
+                                        JSON.stringify(feature.properties)
+                                    );
+                                }
+                            }
+                        }).addTo(map);
+
+                        activeLayers[file.name] = geo;
+                    }
+                });
+
+            } else {
+
+                // hapus layer jika geojson
+                if (activeLayers[file.name]) {
+                    map.removeLayer(activeLayers[file.name]);
+                    delete activeLayers[file.name];
+                }
+
+                document.getElementById("fileContents").textContent = "";
+            }
         };
-        container.appendChild(link);
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(" " + file.name));
+        container.appendChild(label);
+
     });
+
 })
 .catch(err => {
-    document.getElementById("fileList").textContent = "Gagal memuat daftar file: " + err;
+    document.getElementById("fileList").textContent =
+        "Gagal memuat repository: " + err;
 });
 
 </script>
+
 </body>
 </html>
