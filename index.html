@@ -1,292 +1,203 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8" />
 <title>GSN WebGIS PRO</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
 
 <style>
-body { margin:0; font-family:Arial; }
-
-#map { height:100vh; width:100%; }
-
-/* ================= SIDEBAR ================= */
-#sidebar {
-    position:absolute;
-    left:0;
-    top:0;
-    width:320px;
-    height:100%;
-    background:#111;
-    color:white;
-    padding:15px;
-    overflow:auto;
-    transition:all 0.4s ease;
-    z-index:1000;
-    opacity:1;
+html, body {
+    margin: 0;
+    height: 100%;
+    font-family: sans-serif;
 }
 
-#sidebar.collapsed {
-    transform:translateX(-100%);
-    opacity:0;
+#map {
+    height: 100%;
 }
 
-.folder { margin-top:10px; }
-.sub { margin-left:20px; margin-top:5px; }
-
-button {
-    background:none;
-    border:none;
-    color:white;
-    font-weight:bold;
-    cursor:pointer;
+/* ========== SIDEBAR ========== */
+.sidebar {
+    position: absolute;
+    top: 0;
+    left: -300px;
+    width: 260px;
+    height: 100%;
+    background: #111;
+    color: white;
+    padding: 20px;
+    transition: 0.3s ease;
+    z-index: 1000;
 }
 
-/* Hamburger */
-#toggleBtn {
-    position:absolute;
-    top:15px;
-    left:15px;
-    z-index:1100;
-    background:white;
-    border-radius:6px;
-    padding:8px 12px;
-    cursor:pointer;
-    font-size:18px;
-    box-shadow:0 3px 8px rgba(0,0,0,0.3);
+.sidebar.active {
+    left: 0;
 }
 
-/* ================= BASEMAP PANEL ================= */
-#basemapPanel {
-    position:absolute;
-    right:15px;
-    top:15px;
-    background:white;
-    padding:12px;
-    border-radius:10px;
-    box-shadow:0 3px 10px rgba(0,0,0,0.3);
-    z-index:1100;
-    font-size:14px;
+.sidebar h3 {
+    margin-top: 0;
 }
 
-/* ================= SEARCH ================= */
-#searchBox {
-    position:absolute;
-    top:15px;
-    left:70px;
-    z-index:1100;
-    background:white;
-    padding:6px;
-    border-radius:8px;
-    box-shadow:0 3px 8px rgba(0,0,0,0.3);
+.sidebar label {
+    display: block;
+    margin: 10px 0;
+    cursor: pointer;
 }
 
-#searchInput {
-    border:none;
-    outline:none;
-    padding:5px;
-    width:200px;
+/* ========== TOGGLE BUTTON ========== */
+.toggle-btn {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: white;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    z-index: 1100;
+    font-size: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+/* ========== SEARCH BOX ========== */
+.search-container {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+}
+
+.search-container input {
+    padding: 8px 35px 8px 10px;
+    border-radius: 6px;
+    border: none;
+    width: 220px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.clear-btn {
+    position: absolute;
+    right: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #555;
+}
+
+.clear-btn:hover {
+    color: red;
 }
 </style>
 </head>
-
 <body>
-
-<div id="toggleBtn">☰</div>
-
-<div id="searchBox">
-    <input type="text" id="searchInput" placeholder="Cari lokasi...">
-</div>
-
-<div id="sidebar">
-    <h3>DATA GSN</h3>
-    <div id="folderList">Loading...</div>
-</div>
-
-<div id="basemapPanel">
-    <b>Basemap</b><br>
-    <input type="radio" name="basemap" value="osm" checked> OpenStreetMap<br>
-    <input type="radio" name="basemap" value="sat"> Satellite
-</div>
 
 <div id="map"></div>
 
+<!-- Toggle -->
+<div class="toggle-btn" id="toggleBtn">☰</div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+    <h3>Basemap</h3>
+    <label><input type="radio" name="basemap" value="osm" checked> OpenStreetMap</label>
+    <label><input type="radio" name="basemap" value="sat"> Satellite (ESRI)</label>
+
+    <hr>
+
+    <h3>Kategori</h3>
+    <div id="kategoriList">
+        <!-- Auto load kategori -->
+    </div>
+</div>
+
+<!-- Search -->
+<div class="search-container">
+    <input type="text" id="searchInput" placeholder="Cari lokasi...">
+    <span class="clear-btn" id="clearBtn">✖</span>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
 <script>
-// ============================
-// CONFIG REPO
-// ============================
-const username = "GeoSpatialNusantara";
-const repo = "WebGis";
-const rootFolder = "file";
-const baseAPI = `https://api.github.com/repos/${username}/${repo}/contents/${rootFolder}`;
+// ================= MAP =================
+var map = L.map('map', {
+    zoomControl: true,
+    scrollWheelZoom: true,
+    smoothWheelZoom: true
+}).setView([-2.5, 118], 5); // Indonesia default
 
-// ============================
-// MAP INIT - ZOOM INDONESIA
-// ============================
-const map = L.map('map').setView([-2.5,118],5);
-
-// OSM
-const osm = L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { attribution:'© OpenStreetMap' }
-).addTo(map);
-
-// ESRI SATELLITE
-const satellite = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { attribution:'Tiles © Esri' }
+// Basemap
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+var sat = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 );
 
-// Basemap switch
-document.querySelectorAll('input[name="basemap"]').forEach(radio=>{
-    radio.onchange = function(){
-        if(this.value === "osm"){
-            map.removeLayer(satellite);
+osm.addTo(map);
+
+// ================= SIDEBAR TOGGLE =================
+var sidebar = document.getElementById("sidebar");
+var toggleBtn = document.getElementById("toggleBtn");
+
+toggleBtn.onclick = function() {
+    sidebar.classList.add("active");
+    toggleBtn.style.display = "none";
+};
+
+map.on("click", function() {
+    sidebar.classList.remove("active");
+    toggleBtn.style.display = "block";
+});
+
+// ================= BASEMAP SWITCH =================
+document.querySelectorAll('input[name="basemap"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        if (this.value === "osm") {
+            map.removeLayer(sat);
             osm.addTo(map);
         } else {
             map.removeLayer(osm);
-            satellite.addTo(map);
+            sat.addTo(map);
         }
-    };
+    });
 });
 
-// ============================
-// SIDEBAR COLLAPSE
-// ============================
-document.getElementById("toggleBtn").onclick = function(){
-    document.getElementById("sidebar").classList.toggle("collapsed");
-};
+// ================= SEARCH =================
+var geocoder = L.Control.Geocoder.nominatim();
 
-// ============================
-// SEARCH LOKASI (NOMINATIM)
-// ============================
-document.getElementById("searchInput").addEventListener("keypress", async function(e){
-    if(e.key === "Enter"){
-        const query = this.value;
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`);
-        const data = await res.json();
-
-        if(data.length > 0){
-            const lat = data[0].lat;
-            const lon = data[0].lon;
-            map.setView([lat, lon], 13);
-            L.marker([lat,lon]).addTo(map)
-                .bindPopup(query)
-                .openPopup();
-        } else {
-            alert("Lokasi tidak ditemukan");
-        }
-    }
-});
-
-// ============================
-// DATA LAYER
-// ============================
-const layers = {};
-
-async function buildSidebar(){
-    const container = document.getElementById("folderList");
-    container.innerHTML = "";
-
-    const res = await fetch(baseAPI);
-    const folders = await res.json();
-
-    folders.forEach(folder=>{
-        if(folder.type !== "dir") return;
-
-        const div = document.createElement("div");
-        div.className = "folder";
-
-        const btn = document.createElement("button");
-        btn.textContent = "▼ " + folder.name;
-
-        const subBox = document.createElement("div");
-        subBox.style.display = "none";
-
-        btn.onclick = ()=>{
-            subBox.style.display =
-                subBox.style.display === "none" ? "block" : "none";
-        };
-
-        div.appendChild(btn);
-        div.appendChild(subBox);
-        container.appendChild(div);
-
-        loadSubFolder(folder.name, subBox);
-    });
-}
-
-async function loadSubFolder(folder, container){
-    const res = await fetch(`${baseAPI}/${encodeURIComponent(folder)}`);
-    const subs = await res.json();
-
-    subs.forEach(sub=>{
-        if(sub.type !== "dir") return;
-
-        const div = document.createElement("div");
-        div.className = "sub";
-
-        const check = document.createElement("input");
-        check.type = "checkbox";
-
-        check.onchange = ()=>{
-            toggleLayer(folder, sub.name, check.checked);
-        };
-
-        const label = document.createElement("label");
-        label.textContent = " " + sub.name;
-
-        div.appendChild(check);
-        div.appendChild(label);
-        container.appendChild(div);
-    });
-}
-
-async function toggleLayer(folder, subfolder, status){
-    const key = `${folder}_${subfolder}`;
-
-    if(status){
-        const group = L.layerGroup().addTo(map);
-        layers[key] = group;
-
-        const res = await fetch(`${baseAPI}/${folder}/${subfolder}`);
-        const files = await res.json();
-
-        files.forEach(file=>{
-            if(file.name.endsWith(".zip")){
-                const lat = -8 + Math.random()*12;
-                const lng = 108 + Math.random()*14;
-
-                const marker = L.circleMarker([lat,lng],{
-                    radius:6,
-                    color:"#00ffff",
-                    fillOpacity:0.8
-                }).bindPopup(`
-                    <b>${folder}</b><br>
-                    ${subfolder}<br>
-                    <a href="${file.download_url}" target="_blank">
-                    Download ZIP
-                    </a>
-                `);
-
-                group.addLayer(marker);
+document.getElementById("searchInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+        geocoder.geocode(this.value, function(results) {
+            if (results.length > 0) {
+                map.setView(results[0].center, 13, {animate:true});
             }
         });
-
-        if(group.getLayers().length > 0){
-            map.fitBounds(group.getBounds(), {padding:[50,50]});
-        }
-
-    } else {
-        if(layers[key]){
-            map.removeLayer(layers[key]);
-        }
     }
-}
+});
 
-buildSidebar();
+// Clear button
+document.getElementById("clearBtn").onclick = function() {
+    document.getElementById("searchInput").value = "";
+};
+
+// ================= AUTO LOAD KATEGORI =================
+fetch("https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents/")
+.then(res => res.json())
+.then(data => {
+    const container = document.getElementById("kategoriList");
+    data.forEach(item => {
+        if(item.type === "dir") {
+            const div = document.createElement("div");
+            div.innerHTML = "📁 " + item.name;
+            div.style.margin = "8px 0";
+            container.appendChild(div);
+        }
+    });
+});
 </script>
 
 </body>
