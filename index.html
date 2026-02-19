@@ -2,167 +2,290 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS - Struktur Repository</title>
+<title>WebGIS GeoSpatialNusantara</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+<script src="https://unpkg.com/leaflet-kmz@latest/dist/leaflet-kmz.js"></script>
 
 <style>
-body { margin:0; display:flex; font-family:Arial; }
+body { margin:0; font-family:Arial; }
+#map { height:100vh; }
 
 #sidebar{
-    width:300px;
-    background:#f4f4f4;
-    padding:10px;
-    overflow:auto;
-    border-right:1px solid #ccc;
+ position:absolute;
+ left:0;
+ top:0;
+ width:320px;
+ height:100%;
+ background:white;
+ overflow:auto;
+ z-index:1000;
+ transition:0.3s;
+ padding:10px;
+ box-shadow:2px 0 5px rgba(0,0,0,0.2);
 }
 
-#map{ flex:1; height:100vh; }
+#sidebar.hide{ left:-300px; }
+
+#toggle{
+ position:absolute;
+ top:10px;
+ left:330px;
+ background:white;
+ padding:6px 10px;
+ cursor:pointer;
+ border-radius:4px;
+ z-index:1100;
+}
+
+input[type="checkbox"]{
+ accent-color:#0078ff;
+}
 
 .folder{
-    cursor:pointer;
-    font-weight:bold;
-    margin-top:5px;
+ font-weight:bold;
+ cursor:pointer;
+ margin-top:8px;
 }
 
-.subfolder{
-    margin-left:15px;
+.year{
+ margin-left:15px;
+ font-style:italic;
+ cursor:pointer;
 }
 
-.file-item{
-    margin-left:30px;
+.fileItem{
+ margin-left:30px;
+ display:block;
 }
 
-.hidden{
-    display:none;
+.search{
+ width:100%;
+ padding:6px;
+ margin-bottom:8px;
+}
+
+.uploadBox{
+ margin-top:10px;
+ padding:8px;
+ border:1px solid #ccc;
 }
 </style>
 </head>
-
 <body>
 
 <div id="sidebar">
-    <h3>Struktur Data</h3>
-    <div id="folderTree"></div>
+<h3>🗂 WebGIS</h3>
+
+<input type="text" id="search" class="search" placeholder="Search layer...">
+
+<div id="layerList"></div>
+
+<div class="uploadBox">
+<b>Upload Temporary</b><br>
+<input type="file" id="upload" multiple>
 </div>
 
+</div>
+
+<div id="toggle">☰</div>
 <div id="map"></div>
-    
+
 <script>
 
-// ===============================
-// 4️⃣ LOAD STRUKTUR REPOSITORY (CHECKBOX VERSION)
-// ===============================
-const owner = "GeoSpatialNusantara";
-const repo = "WebGis";
-const branch = "main";
-const basePath = "file";
+// ==========================
+// BATAS INDONESIA
+// ==========================
+const boundsIndonesia = [
+[-11.5,94],
+[6.5,141]
+];
 
-const apiURL = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}?ref=${branch}`;
+var map = L.map('map',{
+ maxBounds:boundsIndonesia,
+ minZoom:5,
+ maxZoom:18
+}).setView([-2.5,118],5);
 
-let activeLayers = {};
+// ==========================
+// BASEMAP BAGUS
+// ==========================
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
 
-function createCheckboxItem(name, level=0){
+var esriSat = L.tileLayer(
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+);
 
-    let div = document.createElement("div");
-    div.style.marginLeft = (level * 20) + "px";
+var esriLabel = L.tileLayer(
+'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+);
 
-    let checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
+var esriGroup = L.layerGroup([esriSat,esriLabel]).addTo(map);
 
-    div.appendChild(checkbox);
-    div.appendChild(document.createTextNode(" " + name));
+L.control.layers({
+"Esri Satellite":esriGroup,
+"OpenStreetMap":osm
+}).addTo(map);
 
-    return {div, checkbox};
+// ==========================
+// SIDEBAR TOGGLE
+// ==========================
+document.getElementById("toggle").onclick=function(){
+ document.getElementById("sidebar").classList.toggle("hide");
+};
+
+// ==========================
+// GITHUB CONFIG
+// ==========================
+const user="GeoSpatialNusantara";
+const repo="WebGis";
+const root="file";
+
+const apiURL=`https://api.github.com/repos/${user}/${repo}/contents/${root}`;
+
+let activeLayers={};
+
+function toggleLayer(url,name){
+
+ if(activeLayers[url]){
+   map.removeLayer(activeLayers[url]);
+   delete activeLayers[url];
+   return;
+ }
+
+ if(url.endsWith(".zip")){
+   shp(url).then(data=>{
+     let layer=L.geoJSON(data).addTo(map);
+     map.fitBounds(layer.getBounds());
+     activeLayers[url]=layer;
+   });
+ }
+
+ if(url.endsWith(".kmz") || url.endsWith(".kml")){
+   let kmz=new L.KMZ();
+   kmz.load(url);
+   kmz.on("loaded",e=>{
+     map.fitBounds(e.layer.getBounds());
+   });
+   kmz.addTo(map);
+   activeLayers[url]=kmz;
+ }
+
 }
 
-async function loadFolder(path, container, level=0){
+// ==========================
+// LOAD REPOSITORY
+// ==========================
+function loadRepo(){
 
-    const response = await fetch(path);
-    const items = await response.json();
+fetch(apiURL)
+.then(r=>r.json())
+.then(categories=>{
 
-    for(const item of items){
+ categories.forEach(cat=>{
+  if(cat.type==="dir"){
 
-        // =====================
-        // FOLDER (CHECKBOX)
-        // =====================
-        if(item.type === "dir"){
+   let catDiv=document.createElement("div");
+   catDiv.className="folder";
+   catDiv.innerHTML="▸ "+cat.name;
+   document.getElementById("layerList").appendChild(catDiv);
 
-            let {div, checkbox} = createCheckboxItem(item.name, level);
-            container.appendChild(div);
+   fetch(cat.url)
+   .then(r=>r.json())
+   .then(years=>{
+    years.forEach(year=>{
+     if(year.type==="dir"){
 
-            let subContainer = document.createElement("div");
-            container.appendChild(subContainer);
+      let yearDiv=document.createElement("div");
+      yearDiv.className="year";
+      yearDiv.innerHTML="▸ "+year.name;
+      document.getElementById("layerList").appendChild(yearDiv);
 
-            // Jika folder dicentang → semua child ikut
-            checkbox.onchange = function(){
+      fetch(year.url)
+      .then(r=>r.json())
+      .then(files=>{
+       files.forEach(file=>{
+        if(file.name.endsWith(".zip") || file.name.endsWith(".kmz") || file.name.endsWith(".kml")){
 
-                subContainer.querySelectorAll("input[type=checkbox]")
-                .forEach(cb => {
-                    cb.checked = checkbox.checked;
-                    cb.dispatchEvent(new Event("change"));
-                });
+         let checkbox=document.createElement("input");
+         checkbox.type="checkbox";
+         checkbox.onchange=function(){
+           toggleLayer(file.download_url,file.name);
+         };
 
-            };
+         let label=document.createElement("label");
+         label.className="fileItem";
+         label.appendChild(checkbox);
+         label.append(" "+file.name);
 
-            await loadFolder(item.url, subContainer, level+1);
+         document.getElementById("layerList").appendChild(label);
         }
+       });
+      });
 
-        // =====================
-        // FILE GEOJSON
-        // =====================
-        if(item.type === "file" && item.name.endsWith(".geojson")){
+     }
+    });
+   });
 
-            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${item.path}`;
+  }
+ });
 
-            let {div, checkbox} = createCheckboxItem(item.name, level);
-            container.appendChild(div);
+});
 
-            checkbox.onchange = function(){
-
-                if(this.checked){
-
-                    fetch(rawURL)
-                    .then(r=>r.json())
-                    .then(data=>{
-
-                        let geo = L.geoJSON(data,{
-                            onEachFeature: function(feature, layer){
-                                if(feature.properties){
-                                    layer.bindPopup(
-                                        Object.entries(feature.properties)
-                                        .map(([k,v]) => k + ": " + v)
-                                        .join("<br>")
-                                    );
-                                }
-                            }
-                        }).addTo(map);
-
-                        activeLayers[item.path] = geo;
-
-                        if(geo.getBounds().isValid()){
-                            map.fitBounds(geo.getBounds());
-                        }
-
-                    });
-
-                }else{
-
-                    if(activeLayers[item.path]){
-                        map.removeLayer(activeLayers[item.path]);
-                        delete activeLayers[item.path];
-                    }
-                }
-            };
-        }
-    }
 }
 
-loadFolder(apiURL, document.getElementById("folderTree"));
+loadRepo();
+
+// ==========================
+// SEARCH
+// ==========================
+document.getElementById("search").addEventListener("keyup",function(){
+ let value=this.value.toLowerCase();
+ let items=document.querySelectorAll(".fileItem");
+
+ items.forEach(item=>{
+   if(item.innerText.toLowerCase().includes(value)){
+     item.style.display="";
+   }else{
+     item.style.display="none";
+   }
+ });
+});
+
+// ==========================
+// UPLOAD TEMPORARY
+// ==========================
+document.getElementById("upload").addEventListener("change",function(e){
+
+ Array.from(e.target.files).forEach(file=>{
+
+  if(file.name.endsWith(".zip")){
+   let reader=new FileReader();
+   reader.onload=function(evt){
+    shp(evt.target.result).then(data=>{
+     let layer=L.geoJSON(data).addTo(map);
+     map.fitBounds(layer.getBounds());
+    });
+   };
+   reader.readAsArrayBuffer(file);
+  }
+
+  if(file.name.endsWith(".kml")){
+   let reader=new FileReader();
+   reader.onload=function(evt){
+    let parser=new DOMParser();
+    let kml=parser.parseFromString(evt.target.result,"text/xml");
+    let layer=L.geoJSON(toGeoJSON.kml(kml)).addTo(map);
+    map.fitBounds(layer.getBounds());
+   };
+   reader.readAsText(file);
+  }
+
+ });
+
+});
 
 </script>
 </body>
