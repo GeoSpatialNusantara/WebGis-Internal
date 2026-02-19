@@ -37,8 +37,10 @@ cursor:pointer;
 z-index:1100;
 }
 
-label{display:block;margin:5px 0;}
-h3{margin-top:15px;border-bottom:1px solid #444;padding-bottom:5px;}
+label{display:block;margin:5px 0;cursor:pointer;}
+input[type=checkbox]{margin-right:5px;}
+h3{border-bottom:1px solid #444;padding-bottom:5px;}
+.year{margin-left:15px;}
 </style>
 </head>
 <body>
@@ -58,16 +60,13 @@ h3{margin-top:15px;border-bottom:1px solid #444;padding-bottom:5px;}
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
 
 <script>
 
 /* ================= MAP ================= */
-
-var indonesiaBounds = [
-[-11,94],
-[6,141]
-];
+var indonesiaBounds = [[-11,94],[6,141]];
 
 var map = L.map('map',{
 minZoom:5,
@@ -76,7 +75,6 @@ maxBoundsViscosity:1
 }).setView([-2.5,118],5);
 
 /* ================= BASEMAP ================= */
-
 var osm = L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 ).addTo(map);
@@ -101,11 +99,8 @@ map.addLayer(google);
 });
 
 /* ================= SIDEBAR ================= */
-
 var sidebar=document.getElementById("sidebar");
-var toggle=document.getElementById("toggleBtn");
-
-toggle.onclick=function(){
+document.getElementById("toggleBtn").onclick=function(){
 sidebar.classList.toggle("active");
 };
 
@@ -113,14 +108,14 @@ sidebar.classList.toggle("active");
 
 var repo="GeoSpatialNusantara/WebGis";
 var container=document.getElementById("layerContainer");
+var layerStore={};
 
-var layersStore={};
-
-function loadFolder(url, kategori=null, tahun=null){
+function loadFolder(url,kategori=null,tahun=null){
 
 fetch(url)
 .then(res=>res.json())
 .then(data=>{
+
 data.forEach(item=>{
 
 if(item.type==="dir"){
@@ -136,55 +131,98 @@ loadFolder(item.url,kategori,item.name);
 }
 
 if(item.type==="file"){
-
 if(item.name.endsWith(".zip") || item.name.endsWith(".kmz")){
-loadFile(item,kategori,tahun);
+prepareFile(item,kategori,tahun);
 }
-
 }
 
 });
+
 });
 }
 
 function createKategori(folder){
-var id="kat_"+folder.name;
-layersStore[folder.name]={};
+
+layerStore[folder.name]={};
 
 var label=document.createElement("label");
-label.innerHTML=`<input type="radio" name="kat" id="${id}"> ${folder.name}`;
+var checkbox=document.createElement("checkbox");
+checkbox.type="checkbox";
+
+checkbox.onchange=function(){
+var years=layerStore[folder.name];
+for(var y in years){
+years[y].forEach(layer=>{
+if(this.checked){
+layer.addTo(map);
+}else{
+map.removeLayer(layer);
+}
+});
+}
+};
+
+label.appendChild(checkbox);
+label.append(" "+folder.name);
 container.appendChild(label);
 }
 
 function createTahun(folder,kategori){
 
-layersStore[kategori][folder.name]=[];
+layerStore[kategori][folder.name]=[];
 
 var label=document.createElement("label");
-label.style.marginLeft="15px";
-label.innerHTML=`<input type="radio" name="th_${kategori}"> ${folder.name}`;
+label.className="year";
+
+var checkbox=document.createElement("input");
+checkbox.type="checkbox";
+
+checkbox.onchange=function(){
+layerStore[kategori][folder.name].forEach(layer=>{
+if(this.checked){
+layer.addTo(map);
+}else{
+map.removeLayer(layer);
+}
+});
+};
+
+label.appendChild(checkbox);
+label.append(" "+folder.name);
 container.appendChild(label);
 }
 
-function loadFile(file,kategori,tahun){
+function prepareFile(file,kategori,tahun){
 
 fetch(file.download_url)
 .then(res=>res.arrayBuffer())
 .then(buffer=>{
 
 if(file.name.endsWith(".zip")){
+
 shp(buffer).then(geojson=>{
-var layer=L.geoJSON(geojson);
-layersStore[kategori][tahun].push(layer);
+var layer=L.geoJSON(geojson,{style:{color:"#00ffff"}});
+layerStore[kategori][tahun].push(layer);
 });
+
 }
 
 if(file.name.endsWith(".kmz")){
-var parser = new DOMParser();
-var kml = parser.parseFromString(buffer, "text/xml");
-var geojson = toGeoJSON.kml(kml);
-var layer=L.geoJSON(geojson);
-layersStore[kategori][tahun].push(layer);
+
+JSZip.loadAsync(buffer).then(zip=>{
+zip.forEach(function(relativePath,fileEntry){
+if(relativePath.endsWith(".kml")){
+fileEntry.async("string").then(function(kmlText){
+var parser=new DOMParser();
+var kml=parser.parseFromString(kmlText,"text/xml");
+var geojson=toGeoJSON.kml(kml);
+var layer=L.geoJSON(geojson,{style:{color:"#ffcc00"}});
+layerStore[kategori][tahun].push(layer);
+});
+}
+});
+});
+
 }
 
 });
