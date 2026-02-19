@@ -1,3 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WebGIS - Struktur Repository</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+<style>
+body { margin:0; display:flex; font-family:Arial; }
+
+#sidebar{
+    width:300px;
+    background:#f4f4f4;
+    padding:10px;
+    overflow:auto;
+    border-right:1px solid #ccc;
+}
+
+#map{ flex:1; height:100vh; }
+
+.folder{
+    cursor:pointer;
+    font-weight:bold;
+    margin-top:5px;
+}
+
+.subfolder{
+    margin-left:15px;
+}
+
+.file-item{
+    margin-left:30px;
+}
+
+.hidden{
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <h3>Struktur Data</h3>
+    <div id="folderTree"></div>
+</div>
+
+<div id="map"></div>
+
+<script>
+
+// ===============================
+// 1️⃣ BATAS INDONESIA
+// ===============================
+var indonesiaBounds = [
+    [-11.5, 94.5],
+    [6.5, 141.5]
+];
+
+var map = L.map("map",{
+    maxBounds: indonesiaBounds,
+    maxBoundsViscosity:1.0,
+    minZoom:5,
+    maxZoom:18
+}).fitBounds(indonesiaBounds);
+
+// ===============================
+// 2️⃣ BASEMAP (OSM & SATELLITE)
+// ===============================
+var osm = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { attribution:"© OpenStreetMap" }
+).addTo(map);
+
+var satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { attribution:"Tiles © Esri" }
+);
+
+L.control.layers({
+    "OpenStreetMap": osm,
+    "Satellite": satellite
+}).addTo(map);
+
+// ===============================
+// 3️⃣ SEARCH
+// ===============================
+L.Control.geocoder({
+    defaultMarkGeocode: true
+}).addTo(map);
+
+// ===============================
+// 4️⃣ LOAD STRUKTUR REPOSITORY
+// ===============================
+const owner = "GeoSpatialNusantara";
+const repo = "WebGis";
+const branch = "main";
+const basePath = "file";
+
+const apiURL = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}?ref=${branch}`;
+
 let activeLayers = {};
 let folderChildren = {};
 
@@ -92,3 +198,49 @@ async function loadFolder(path, container, level=0){
         }
     }
 }
+
+    div.appendChild(checkbox);
+    div.appendChild(document.createTextNode(" " + name));
+
+    return div;
+}
+
+async function loadFolder(path, container){
+
+    const response = await fetch(path);
+    const items = await response.json();
+
+    for(const item of items){
+
+        if(item.type === "dir"){
+
+            let folderDiv = createFolder(item.name);
+            container.appendChild(folderDiv);
+
+            let subContainer = document.createElement("div");
+            subContainer.className = "subfolder hidden";
+            container.appendChild(subContainer);
+
+            folderDiv.onclick = function(){
+                subContainer.classList.toggle("hidden");
+            };
+
+            await loadFolder(item.url, subContainer);
+        }
+
+        if(item.type === "file" && item.name.endsWith(".geojson")){
+
+            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${basePath}/${item.path.replace(basePath + '/', '')}`;
+
+            let fileDiv = createFileCheckbox(item.name, rawURL);
+            container.appendChild(fileDiv);
+        }
+    }
+}
+
+loadFolder(apiURL, document.getElementById("folderTree"));
+
+</script>
+
+</body>
+</html>
