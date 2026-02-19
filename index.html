@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Tahun Viewer</title>
+<title>WebGIS Subfolder Viewer</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -13,31 +13,31 @@
 <style>
 body { margin:0; display:flex; font-family:Arial; }
 #sidebar {
-    width:260px;
+    width:250px;
     background:#f4f4f4;
     padding:10px;
     overflow:auto;
     border-right:1px solid #ccc;
 }
 #map { flex:1; height:100vh; }
-.year { margin-top:8px; font-weight:bold; }
+.folder-item { margin-bottom:8px; }
 </style>
 </head>
 
 <body>
 
 <div id="sidebar">
-    <h3>Data Berdasarkan Tahun</h3>
-    <div id="yearList"></div>
+    <h3>Subfolder Layer</h3>
+    <div id="folderList"></div>
 </div>
 
 <div id="map"></div>
 
 <script>
 
-// ==========================
+// ===============================
 // 1️⃣ BATAS INDONESIA
-// ==========================
+// ===============================
 var indonesiaBounds = [
     [-11.5, 94.5],
     [6.5, 141.5]
@@ -50,9 +50,9 @@ var map = L.map("map", {
     maxZoom: 18
 }).fitBounds(indonesiaBounds);
 
-// ==========================
+// ===============================
 // 2️⃣ BASEMAP
-// ==========================
+// ===============================
 var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     { attribution:"© OpenStreetMap" }
@@ -68,34 +68,31 @@ L.control.layers({
     "Satellite": satellite
 }).addTo(map);
 
-// ==========================
+// ===============================
 // 3️⃣ SEARCH
-// ==========================
+// ===============================
 L.Control.geocoder().addTo(map);
 
-// ==========================
-// 4️⃣ LOAD HANYA FOLDER TAHUN
-// ==========================
+// ===============================
+// 4️⃣ LOAD SUBFOLDER SAJA
+// ===============================
+
 var repoRoot = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
 var activeLayers = {};
-
-// fungsi cek apakah nama folder adalah tahun (4 digit angka)
-function isYearFolder(name) {
-    return /^\d{4}$/.test(name);
-}
 
 fetch(repoRoot)
 .then(res => res.json())
 .then(items => {
 
-    let container = document.getElementById("yearList");
+    let container = document.getElementById("folderList");
 
     items.forEach(item => {
 
-        if (item.type === "dir" && isYearFolder(item.name)) {
+        // Tampilkan hanya folder
+        if (item.type === "dir") {
 
             let div = document.createElement("div");
-            div.className = "year";
+            div.className = "folder-item";
 
             let checkbox = document.createElement("input");
             checkbox.type = "checkbox";
@@ -104,13 +101,14 @@ fetch(repoRoot)
 
                 if (this.checked) {
 
+                    // Ambil isi folder
                     fetch(item.url)
                     .then(r => r.json())
                     .then(files => {
 
                         files.forEach(file => {
 
-                            if (file.type === "file" && file.name.endsWith(".geojson")) {
+                            if (file.name.endsWith(".geojson")) {
 
                                 fetch(file.download_url)
                                 .then(r => r.json())
@@ -128,8 +126,14 @@ fetch(repoRoot)
                                         }
                                     }).addTo(map);
 
-                                    activeLayers[file.path] = geo;
+                                    if (!activeLayers[item.name]) {
+                                        activeLayers[item.name] = [];
+                                    }
+
+                                    activeLayers[item.name].push(geo);
+
                                 });
+
                             }
 
                         });
@@ -138,13 +142,15 @@ fetch(repoRoot)
 
                 } else {
 
-                    // hapus semua layer dalam folder tahun tsb
-                    Object.keys(activeLayers).forEach(key => {
-                        if (key.startsWith(item.name + "/")) {
-                            map.removeLayer(activeLayers[key]);
-                            delete activeLayers[key];
-                        }
-                    });
+                    // Hapus semua layer dari folder tersebut
+                    if (activeLayers[item.name]) {
+
+                        activeLayers[item.name].forEach(layer => {
+                            map.removeLayer(layer);
+                        });
+
+                        delete activeLayers[item.name];
+                    }
 
                 }
             };
@@ -161,7 +167,7 @@ fetch(repoRoot)
 
 })
 .catch(err => {
-    document.getElementById("yearList").textContent =
+    document.getElementById("folderList").textContent =
         "Gagal memuat repository.";
 });
 
