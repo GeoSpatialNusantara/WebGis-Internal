@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Subfolder Viewer</title>
+<title>WebGIS Subfolder from /file</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -27,7 +27,7 @@ body { margin:0; display:flex; font-family:Arial; }
 <body>
 
 <div id="sidebar">
-    <h3>Subfolder Layer</h3>
+    <h3>Layer Folder (/file)</h3>
     <div id="folderList"></div>
 </div>
 
@@ -74,21 +74,25 @@ L.control.layers({
 L.Control.geocoder().addTo(map);
 
 // ===============================
-// 4️⃣ LOAD SUBFOLDER SAJA
+// 4️⃣ LOAD HANYA SUBFOLDER DI /file
 // ===============================
 
-var repoRoot = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents";
+// Path API ke folder "file"
+var folderAPI = "https://api.github.com/repos/GeoSpatialNusantara/WebGis/contents/file";
 var activeLayers = {};
 
-fetch(repoRoot)
-.then(res => res.json())
+fetch(folderAPI)
+.then(res => {
+    if (!res.ok) throw new Error("Folder /file tidak ditemukan");
+    return res.json();
+})
 .then(items => {
 
     let container = document.getElementById("folderList");
 
     items.forEach(item => {
 
-        // Tampilkan hanya folder
+        // Tampilkan hanya subfolder
         if (item.type === "dir") {
 
             let div = document.createElement("div");
@@ -101,7 +105,6 @@ fetch(repoRoot)
 
                 if (this.checked) {
 
-                    // Ambil isi folder
                     fetch(item.url)
                     .then(r => r.json())
                     .then(files => {
@@ -142,7 +145,6 @@ fetch(repoRoot)
 
                 } else {
 
-                    // Hapus semua layer dari folder tersebut
                     if (activeLayers[item.name]) {
 
                         activeLayers[item.name].forEach(layer => {
@@ -168,7 +170,7 @@ fetch(repoRoot)
 })
 .catch(err => {
     document.getElementById("folderList").textContent =
-        "Gagal memuat repository.";
+        "Folder /file tidak ditemukan atau kosong.";
 });
 
 </script>
