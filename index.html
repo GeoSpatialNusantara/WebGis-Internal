@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS - GitHub Layer Loader</title>
+<title>WebGIS - GitHub Layer Loader FIXED</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -15,7 +15,7 @@ body { margin:0; display:flex; font-family:Arial; }
 
 #sidebar{
     width:340px;
-    background:#f7f7f7;
+    background:#f4f4f4;
     padding:15px;
     height:100vh;
     overflow:auto;
@@ -27,18 +27,18 @@ body { margin:0; display:flex; font-family:Arial; }
     height:100vh;
 }
 
-.layer-item{
+.folder, .file {
     margin-top:6px;
-    cursor:pointer;
 }
 
-.folder-label{
-    font-weight:bold;
-}
-
-.children{
+.children {
     margin-left:20px;
     display:none;
+}
+
+.folder-title {
+    font-weight:bold;
+    cursor:pointer;
 }
 </style>
 </head>
@@ -47,7 +47,7 @@ body { margin:0; display:flex; font-family:Arial; }
 
 <div id="sidebar">
     <h3>📂 Layer Repository</h3>
-    <div id="folderList"></div>
+    <div id="folderList">Loading layer...</div>
 </div>
 
 <div id="map"></div>
@@ -75,7 +75,7 @@ L.control.layers({
 // ================= SEARCH =================
 L.Control.geocoder({defaultMarkGeocode:true}).addTo(map);
 
-// ================= GITHUB CONFIG =================
+// ================= CONFIG =================
 const owner = "GeoSpatialNusantara";
 const repo = "WebGis";
 const branch = "main";
@@ -85,11 +85,11 @@ const apiURL = `https://api.github.com/repos/${owner}/${repo}/contents/${rootFol
 
 let activeLayers = {};
 
-// ================= CREATE FILE CHECKBOX =================
-function createFileItem(name, url){
+// ================= FILE CHECKBOX =================
+function createFile(name, url){
 
     let div = document.createElement("div");
-    div.className = "layer-item";
+    div.className = "file";
 
     let cb = document.createElement("input");
     cb.type = "checkbox";
@@ -120,7 +120,8 @@ function createFileItem(name, url){
                     map.fitBounds(geo.getBounds());
                 }
 
-            });
+            })
+            .catch(()=> alert("File tidak bisa dibaca"));
 
         } else {
 
@@ -133,75 +134,88 @@ function createFileItem(name, url){
 
     div.appendChild(cb);
     div.appendChild(document.createTextNode(" " + name));
+
     return div;
 }
 
-// ================= LOAD FOLDER RECURSIVE =================
-async function loadFolders(path, container){
+// ================= RECURSIVE LOADER =================
+async function loadFolder(url, container){
 
-    const response = await fetch(path);
-    const items = await response.json();
+    try {
 
-    for(const item of items){
+        const response = await fetch(url);
+        const items = await response.json();
 
-        // -------- FOLDER --------
-        if(item.type === "dir"){
+        // kosongkan loading
+        container.innerHTML = "";
 
-            let folderDiv = document.createElement("div");
-            folderDiv.className = "layer-item folder-label";
+        // urutkan: folder dulu baru file
+        items.sort((a,b)=>{
+            if(a.type === b.type) return a.name.localeCompare(b.name);
+            return a.type === "dir" ? -1 : 1;
+        });
 
-            let folderCheckbox = document.createElement("input");
-            folderCheckbox.type = "checkbox";
+        for(const item of items){
 
-            let toggle = document.createElement("span");
-            toggle.textContent = " ▶ ";
-            toggle.style.cursor = "pointer";
+            // ===== FOLDER =====
+            if(item.type === "dir"){
 
-            folderDiv.appendChild(folderCheckbox);
-            folderDiv.appendChild(toggle);
-            folderDiv.appendChild(document.createTextNode(item.name));
-            container.appendChild(folderDiv);
+                let folderDiv = document.createElement("div");
+                folderDiv.className = "folder";
 
-            let childrenDiv = document.createElement("div");
-            childrenDiv.className = "children";
-            container.appendChild(childrenDiv);
+                let folderCheckbox = document.createElement("input");
+                folderCheckbox.type = "checkbox";
 
-            // Expand collapse
-            toggle.onclick = function(){
-                if(childrenDiv.style.display === "none"){
-                    childrenDiv.style.display = "block";
-                    toggle.textContent = " ▼ ";
-                } else {
-                    childrenDiv.style.display = "none";
-                    toggle.textContent = " ▶ ";
-                }
-            };
+                let folderTitle = document.createElement("span");
+                folderTitle.className = "folder-title";
+                folderTitle.textContent = " ▶ " + item.name;
 
-            // ON/OFF semua child
-            folderCheckbox.onchange = function(){
+                folderDiv.appendChild(folderCheckbox);
+                folderDiv.appendChild(folderTitle);
+                container.appendChild(folderDiv);
 
-                let childChecks = childrenDiv.querySelectorAll("input[type=checkbox]");
+                let childrenDiv = document.createElement("div");
+                childrenDiv.className = "children";
+                container.appendChild(childrenDiv);
 
-                childChecks.forEach(cb=>{
-                    cb.checked = folderCheckbox.checked;
-                    cb.dispatchEvent(new Event("change"));
-                });
-            };
+                // expand collapse
+                folderTitle.onclick = function(){
+                    if(childrenDiv.style.display === "none"){
+                        childrenDiv.style.display = "block";
+                        folderTitle.textContent = " ▼ " + item.name;
+                    } else {
+                        childrenDiv.style.display = "none";
+                        folderTitle.textContent = " ▶ " + item.name;
+                    }
+                };
 
-            await loadFolders(item.url, childrenDiv);
+                // folder ON/OFF semua child
+                folderCheckbox.onchange = function(){
+                    let checks = childrenDiv.querySelectorAll("input[type=checkbox]");
+                    checks.forEach(cb=>{
+                        cb.checked = folderCheckbox.checked;
+                        cb.dispatchEvent(new Event("change"));
+                    });
+                };
+
+                await loadFolder(item.url, childrenDiv);
+            }
+
+            // ===== FILE =====
+            if(item.type === "file" && item.name.endsWith(".geojson")){
+                let fileItem = createFile(item.name, item.download_url);
+                container.appendChild(fileItem);
+            }
         }
 
-        // -------- FILE GEOJSON --------
-        if(item.type === "file" && item.name.endsWith(".geojson")){
-
-            let fileItem = createFileItem(item.name, item.download_url);
-            container.appendChild(fileItem);
-        }
+    } catch(err){
+        container.innerHTML = "Gagal memuat layer.";
+        console.error(err);
     }
 }
 
-// RUN
-loadFolders(apiURL, document.getElementById("folderList"));
+// ================= RUN =================
+loadFolder(apiURL, document.getElementById("folderList"));
 
 </script>
 
