@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Folder Checkbox</title>
+<title>WebGIS Stable Folder Loader</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -22,7 +22,7 @@ body { margin:0; display:flex; font-family:Arial; }
 .folder { font-weight:bold; margin-top:8px; }
 .file { margin-left:25px; }
 .subfolder { margin-left:20px; }
-.toggle { cursor:pointer; margin-right:5px; }
+.toggle { cursor:pointer; margin-left:5px; }
 </style>
 </head>
 
@@ -30,7 +30,7 @@ body { margin:0; display:flex; font-family:Arial; }
 
 <div id="sidebar">
     <h3>📂 Repository Layers</h3>
-    <div id="tree">Loading...</div>
+    <div id="tree">Memuat folder...</div>
 </div>
 
 <div id="map"></div>
@@ -48,19 +48,35 @@ L.tileLayer(
 let activeLayers = {};
 
 // ================= CONFIG =================
-const repo = "GeoSpatialNusantara/WebGis";
+const owner = "GeoSpatialNusantara";
+const repo = "WebGis";
+const branch = "main";
 const basePath = "file";
 
-// ================= RECURSIVE LOAD =================
-function loadFolder(path, container){
+// ================= LOAD FOLDER =================
+async function loadFolder(path, container){
 
-    fetch(`https://api.github.com/repos/${repo}/contents/${path}`)
-    .then(res => res.json())
-    .then(items => {
+    try {
 
-        items.forEach(item => {
+        const apiURL = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${branch}`;
 
-            // ======= FOLDER =======
+        const res = await fetch(apiURL);
+
+        if(!res.ok){
+            container.innerHTML += "<div>❌ API limit / folder tidak ditemukan</div>";
+            return;
+        }
+
+        const items = await res.json();
+
+        if(!Array.isArray(items)){
+            container.innerHTML += "<div>❌ Struktur tidak valid</div>";
+            return;
+        }
+
+        for(const item of items){
+
+            // ===== FOLDER =====
             if(item.type === "dir"){
 
                 let wrapper = document.createElement("div");
@@ -71,42 +87,41 @@ function loadFolder(path, container){
                 let checkbox = document.createElement("input");
                 checkbox.type = "checkbox";
 
-                let toggle = document.createElement("span");
-                toggle.textContent = "📁 " + item.name;
-                toggle.className = "toggle";
+                let label = document.createElement("span");
+                label.textContent = " 📁 " + item.name;
+                label.className = "toggle";
 
                 let subContainer = document.createElement("div");
                 subContainer.className = "subfolder";
                 subContainer.style.display = "none";
 
-                toggle.onclick = function(){
+                label.onclick = function(){
                     subContainer.style.display =
                         subContainer.style.display === "none"
                         ? "block" : "none";
                 };
 
-                // Folder checkbox logic
                 checkbox.onchange = function(){
-                    let childChecks = subContainer.querySelectorAll("input[type=checkbox]");
-                    childChecks.forEach(cb=>{
+                    let children = subContainer.querySelectorAll("input[type=checkbox]");
+                    children.forEach(cb=>{
                         cb.checked = checkbox.checked;
                         cb.dispatchEvent(new Event("change"));
                     });
                 };
 
                 folderLine.appendChild(checkbox);
-                folderLine.appendChild(toggle);
+                folderLine.appendChild(label);
 
                 wrapper.appendChild(folderLine);
                 wrapper.appendChild(subContainer);
 
                 container.appendChild(wrapper);
 
-                loadFolder(item.path, subContainer);
+                await loadFolder(item.path, subContainer);
             }
 
-            // ======= GEOJSON FILE =======
-            if(item.name.endsWith(".geojson")){
+            // ===== GEOJSON FILE =====
+            if(item.type === "file" && item.name.endsWith(".geojson")){
 
                 let fileDiv = document.createElement("div");
                 fileDiv.className = "file";
@@ -114,13 +129,17 @@ function loadFolder(path, container){
                 let checkbox = document.createElement("input");
                 checkbox.type = "checkbox";
 
-                checkbox.onchange = function(){
+                // Gunakan RAW URL supaya stabil
+                const rawURL =
+                `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${item.path}`;
+
+                checkbox.onchange = async function(){
 
                     if(this.checked){
 
-                        fetch(item.download_url)
-                        .then(r => r.json())
-                        .then(data => {
+                        try{
+                            const r = await fetch(rawURL);
+                            const data = await r.json();
 
                             let layer = L.geoJSON(data).addTo(map);
                             activeLayers[item.path] = layer;
@@ -129,17 +148,16 @@ function loadFolder(path, container){
                                 map.fitBounds(layer.getBounds());
                             }
 
-                        });
+                        }catch(e){
+                            alert("Gagal load file: " + item.name);
+                        }
 
                     } else {
-
                         if(activeLayers[item.path]){
                             map.removeLayer(activeLayers[item.path]);
                             delete activeLayers[item.path];
                         }
-
                     }
-
                 };
 
                 fileDiv.appendChild(checkbox);
@@ -148,12 +166,12 @@ function loadFolder(path, container){
                 container.appendChild(fileDiv);
             }
 
-        });
+        }
 
-    })
-    .catch(err=>{
-        container.innerHTML += "<div>❌ Gagal load</div>";
-    });
+    } catch(err){
+        container.innerHTML += "<div>❌ Error koneksi</div>";
+        console.error(err);
+    }
 }
 
 // START
