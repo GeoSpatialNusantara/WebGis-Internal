@@ -2,17 +2,13 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS - Stable Version</title>
+<title>WebGIS Auto Load GitHub</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
-<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
 <style>
 body { margin:0; display:flex; font-family:Arial; }
-
 #sidebar{
     width:350px;
     background:#f4f4f4;
@@ -21,40 +17,23 @@ body { margin:0; display:flex; font-family:Arial; }
     overflow:auto;
     border-right:1px solid #ccc;
 }
-
-#map{
-    flex:1;
-    height:100vh;
-}
-
-.folder{
-    margin-top:8px;
-    font-weight:bold;
-}
-
-.children{
-    margin-left:20px;
-    margin-top:5px;
-}
-
-.file{
-    margin-top:4px;
-}
+#map{ flex:1; height:100vh; }
+.file-item { margin-left:15px; }
 </style>
 </head>
 
 <body>
 
 <div id="sidebar">
-    <h3>📂 Layer Repository</h3>
-    <div id="folderList">Memuat layer...</div>
+    <h3>📂 Batimetri MBES 2025</h3>
+    <div id="fileList">Loading...</div>
 </div>
 
 <div id="map"></div>
 
 <script>
 
-// ================= MAP =================
+// ================== MAP ==================
 var map = L.map("map").setView([-2.5,117.5],5);
 
 var osm = L.tileLayer(
@@ -72,124 +51,68 @@ L.control.layers({
     "Satellite": satellite
 }).addTo(map);
 
-// ================= SEARCH =================
-L.Control.geocoder({defaultMarkGeocode:true}).addTo(map);
-
-// ================= LOAD INDEX.JSON =================
 let activeLayers = {};
 
-async function loadIndex(){
+// ================== AUTO LOAD FILE LIST ==================
 
-    const response = await fetch("file/index.json");
-    const data = await response.json();
+const repo = "GeoSpatialNusantara/WebGis";
+const folderPath = "file/Batimetri MBES/2025";
 
-    const container = document.getElementById("folderList");
+fetch(`https://api.github.com/repos/${repo}/contents/${folderPath}`)
+.then(res => res.json())
+.then(files => {
+
+    const container = document.getElementById("fileList");
     container.innerHTML = "";
 
-    function buildStructure(obj, path, parent){
+    files.forEach(file => {
 
-        for(const key in obj){
+        if(file.name.endsWith(".geojson")){
 
-            // ===== FOLDER =====
-            if(typeof obj[key] === "object" && !Array.isArray(obj[key])){
+            const div = document.createElement("div");
+            div.className = "file-item";
 
-                let folderDiv = document.createElement("div");
-                folderDiv.className = "folder";
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
 
-                let folderCheckbox = document.createElement("input");
-                folderCheckbox.type = "checkbox";
+            checkbox.onchange = function(){
 
-                folderDiv.appendChild(folderCheckbox);
-                folderDiv.appendChild(document.createTextNode(" " + key));
-                parent.appendChild(folderDiv);
+                if(this.checked){
 
-                let childrenDiv = document.createElement("div");
-                childrenDiv.className = "children";
-                parent.appendChild(childrenDiv);
+                    fetch(file.download_url)
+                    .then(r => r.json())
+                    .then(data => {
+                        let layer = L.geoJSON(data).addTo(map);
+                        activeLayers[file.name] = layer;
 
-                // Folder ON/OFF semua child
-                folderCheckbox.onchange = function(){
-                    let checks = childrenDiv.querySelectorAll("input[type=checkbox]");
-                    checks.forEach(cb=>{
-                        cb.checked = folderCheckbox.checked;
-                        cb.dispatchEvent(new Event("change"));
-                    });
-                };
-
-                buildStructure(obj[key], path + "/" + key, childrenDiv);
-            }
-
-            // ===== FILE LIST =====
-            if(Array.isArray(obj[key])){
-
-                let folderDiv = document.createElement("div");
-                folderDiv.className = "folder";
-
-                let folderCheckbox = document.createElement("input");
-                folderCheckbox.type = "checkbox";
-
-                folderDiv.appendChild(folderCheckbox);
-                folderDiv.appendChild(document.createTextNode(" " + key));
-                parent.appendChild(folderDiv);
-
-                let childrenDiv = document.createElement("div");
-                childrenDiv.className = "children";
-                parent.appendChild(childrenDiv);
-
-                obj[key].forEach(file=>{
-
-                    let fileDiv = document.createElement("div");
-                    fileDiv.className = "file";
-
-                    let cb = document.createElement("input");
-                    cb.type = "checkbox";
-
-                    let fullPath = path + "/" + key + "/" + file;
-
-                    cb.onchange = function(){
-
-                        if(cb.checked){
-
-                            fetch(fullPath)
-                            .then(res=>res.json())
-                            .then(data=>{
-                                let geo = L.geoJSON(data).addTo(map);
-                                activeLayers[fullPath] = geo;
-
-                                if(geo.getBounds().isValid()){
-                                    map.fitBounds(geo.getBounds());
-                                }
-                            });
-
-                        } else {
-                            if(activeLayers[fullPath]){
-                                map.removeLayer(activeLayers[fullPath]);
-                                delete activeLayers[fullPath];
-                            }
+                        if(layer.getBounds().isValid()){
+                            map.fitBounds(layer.getBounds());
                         }
-                    };
-
-                    fileDiv.appendChild(cb);
-                    fileDiv.appendChild(document.createTextNode(" " + file));
-                    childrenDiv.appendChild(fileDiv);
-                });
-
-                // Folder ON/OFF semua file
-                folderCheckbox.onchange = function(){
-                    let checks = childrenDiv.querySelectorAll("input[type=checkbox]");
-                    checks.forEach(cb=>{
-                        cb.checked = folderCheckbox.checked;
-                        cb.dispatchEvent(new Event("change"));
                     });
-                };
-            }
+
+                } else {
+
+                    if(activeLayers[file.name]){
+                        map.removeLayer(activeLayers[file.name]);
+                        delete activeLayers[file.name];
+                    }
+
+                }
+
+            };
+
+            div.appendChild(checkbox);
+            div.appendChild(document.createTextNode(" " + file.name));
+            container.appendChild(div);
         }
-    }
 
-    buildStructure(data, "file", container);
-}
+    });
 
-loadIndex();
+})
+.catch(err=>{
+    document.getElementById("fileList").innerHTML =
+        "Gagal load folder. Pastikan repo public.";
+});
 
 </script>
 
