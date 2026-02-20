@@ -3,19 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <title>WebGIS - GeoSpatialNusantara</title>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body{
-    margin:0;
-    font-family:Arial, sans-serif;
-    overflow:hidden;
-}
-
-#map{
-    height:100vh;
-    width:100%;
-}
+body{margin:0;font-family:Arial, sans-serif;overflow:hidden;}
+#map{height:100vh;width:100%;}
 
 /* ===== SIDEBAR ===== */
 #sidebar{
@@ -33,10 +26,7 @@ body{
     transition:0.3s;
     z-index:1000;
 }
-
-#sidebar.active{
-    transform:translateX(0);
-}
+#sidebar.active{transform:translateX(0);}
 
 #toggleBtn{
     position:absolute;
@@ -53,40 +43,42 @@ body{
 }
 
 /* ===== STRUCTURE ===== */
-.category{
-    margin-top:12px;
-    font-weight:bold;
-    cursor:pointer;
-}
-
-.year{
-    margin-left:15px;
-    margin-top:6px;
+.row{
     display:flex;
     align-items:center;
+    margin-top:8px;
 }
 
-/* Toggle bulat */
+.label{
+    cursor:pointer;
+    user-select:none;
+}
+
+.category-label{
+    font-weight:bold;
+}
+
+.year-label{
+    margin-left:10px;
+}
+
+/* Toggle kecil abu */
 .toggle{
-    width:14px;
-    height:14px;
+    width:12px;
+    height:12px;
     border-radius:50%;
-    border:2px solid #2c7be5;
+    border:2px solid #888;
     margin-right:8px;
     cursor:pointer;
+    transition:0.2s;
 }
-
 .toggle.active{
-    background:#2c7be5;
+    background:#666;
+    border-color:#666;
 }
 
-.children{
-    display:none;
-}
-
-.children.active{
-    display:block;
-}
+.children{display:none;margin-left:15px;}
+.children.active{display:block;}
 
 .leaflet-tooltip{
     background:white;
@@ -161,44 +153,73 @@ async function loadStructure(){
     const categories = await fetchGitHub(ROOT_FOLDER);
 
     for(const cat of categories){
-
         if(cat.type!=="dir") continue;
 
-        // CATEGORY
-        const catDiv=document.createElement("div");
-        catDiv.className="category";
-        catDiv.innerHTML=`▶ ${cat.name}`;
-        container.appendChild(catDiv);
+        // ===== CATEGORY ROW =====
+        const catRow=document.createElement("div");
+        catRow.className="row";
 
-        const childrenDiv=document.createElement("div");
-        childrenDiv.className="children";
-        container.appendChild(childrenDiv);
+        const catToggle=document.createElement("div");
+        catToggle.className="toggle active";
 
-        catDiv.onclick=()=>{
-            childrenDiv.classList.toggle("active");
-            catDiv.innerHTML = childrenDiv.classList.contains("active")
-                ? `▼ ${cat.name}`
-                : `▶ ${cat.name}`;
+        const catLabel=document.createElement("span");
+        catLabel.className="label category-label";
+        catLabel.innerHTML="▶ "+cat.name;
+
+        catRow.appendChild(catToggle);
+        catRow.appendChild(catLabel);
+        container.appendChild(catRow);
+
+        const yearContainer=document.createElement("div");
+        yearContainer.className="children active";
+        container.appendChild(yearContainer);
+
+        // Expand collapse kategori
+        catLabel.onclick=()=>{
+            yearContainer.classList.toggle("active");
+            catLabel.innerHTML=yearContainer.classList.contains("active")
+                ? "▼ "+cat.name
+                : "▶ "+cat.name;
+        };
+
+        // Toggle kategori ON/OFF
+        catToggle.onclick=(e)=>{
+            e.stopPropagation();
+            catToggle.classList.toggle("active");
+            const active=catToggle.classList.contains("active");
+
+            for(let key in layerStore){
+                if(key.startsWith(cat.path)){
+                    if(active){
+                        map.addLayer(layerStore[key]);
+                        map.addLayer(markerStore[key]);
+                    }else{
+                        map.removeLayer(layerStore[key]);
+                        map.removeLayer(markerStore[key]);
+                    }
+                }
+            }
         };
 
         const years=await fetchGitHub(cat.path);
 
         for(const year of years){
-
             if(year.type!=="dir") continue;
 
-            const yearDiv=document.createElement("div");
-            yearDiv.className="year";
+            // ===== YEAR ROW =====
+            const yearRow=document.createElement("div");
+            yearRow.className="row";
 
-            const toggle=document.createElement("div");
-            toggle.className="toggle active";
+            const yearToggle=document.createElement("div");
+            yearToggle.className="toggle active";
 
-            const label=document.createElement("span");
-            label.textContent=year.name;
+            const yearLabel=document.createElement("span");
+            yearLabel.className="label year-label";
+            yearLabel.textContent=year.name;
 
-            yearDiv.appendChild(toggle);
-            yearDiv.appendChild(label);
-            childrenDiv.appendChild(yearDiv);
+            yearRow.appendChild(yearToggle);
+            yearRow.appendChild(yearLabel);
+            yearContainer.appendChild(yearRow);
 
             const files=await fetchGitHub(year.path);
 
@@ -212,11 +233,11 @@ async function loadStructure(){
                 );
             }
 
-            toggle.onclick=(e)=>{
+            // Toggle tahun ON/OFF
+            yearToggle.onclick=(e)=>{
                 e.stopPropagation();
-                toggle.classList.toggle("active");
-
-                const active=toggle.classList.contains("active");
+                yearToggle.classList.toggle("active");
+                const active=yearToggle.classList.contains("active");
 
                 for(let key in layerStore){
                     if(key.startsWith(year.path)){
@@ -245,14 +266,14 @@ async function loadLayer(key,url,name){
     layerStore[key]=layer;
 
     const center=layer.getBounds().getCenter();
-    const size=Math.max(40,map.getZoom()*2);
+    const size=Math.max(35,map.getZoom()*2);
 
     const marker=L.marker(center,{icon:createIcon(size)}).addTo(map);
 
     marker.bindTooltip(name,{direction:"top"});
 
     marker.on("mouseover",()=>{
-        marker.setIcon(createIcon(size*1.5));
+        marker.setIcon(createIcon(size*1.4));
         marker.openTooltip();
     });
 
@@ -270,7 +291,7 @@ async function loadLayer(key,url,name){
 
 // Resize marker saat zoom
 map.on("zoomend",()=>{
-    const size=Math.max(40,map.getZoom()*2);
+    const size=Math.max(35,map.getZoom()*2);
     for(let key in markerStore){
         markerStore[key].setIcon(createIcon(size));
     }
