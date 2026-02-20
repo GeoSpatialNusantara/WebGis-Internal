@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Auto Folder Tree</title>
+<title>WebGIS Folder Checkbox</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -19,19 +19,10 @@ body { margin:0; display:flex; font-family:Arial; }
 }
 #map{ flex:1; height:100vh; }
 
-.folder {
-    font-weight:bold;
-    cursor:pointer;
-    margin-top:8px;
-}
-
-.file {
-    margin-left:20px;
-}
-
-.subfolder {
-    margin-left:15px;
-}
+.folder { font-weight:bold; margin-top:8px; }
+.file { margin-left:25px; }
+.subfolder { margin-left:20px; }
+.toggle { cursor:pointer; margin-right:5px; }
 </style>
 </head>
 
@@ -39,7 +30,7 @@ body { margin:0; display:flex; font-family:Arial; }
 
 <div id="sidebar">
     <h3>📂 Repository Layers</h3>
-    <div id="tree">Loading folder...</div>
+    <div id="tree">Loading...</div>
 </div>
 
 <div id="map"></div>
@@ -60,8 +51,7 @@ let activeLayers = {};
 const repo = "GeoSpatialNusantara/WebGis";
 const basePath = "file";
 
-// ================= RECURSIVE FOLDER LOAD =================
-
+// ================= RECURSIVE LOAD =================
 function loadFolder(path, container){
 
     fetch(`https://api.github.com/repos/${repo}/contents/${path}`)
@@ -70,30 +60,52 @@ function loadFolder(path, container){
 
         items.forEach(item => {
 
-            // ====== SUBFOLDER ======
+            // ======= FOLDER =======
             if(item.type === "dir"){
 
-                let folderDiv = document.createElement("div");
-                folderDiv.className = "folder";
-                folderDiv.textContent = "📁 " + item.name;
+                let wrapper = document.createElement("div");
+
+                let folderLine = document.createElement("div");
+                folderLine.className = "folder";
+
+                let checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+
+                let toggle = document.createElement("span");
+                toggle.textContent = "📁 " + item.name;
+                toggle.className = "toggle";
 
                 let subContainer = document.createElement("div");
                 subContainer.className = "subfolder";
                 subContainer.style.display = "none";
 
-                folderDiv.onclick = function(){
+                toggle.onclick = function(){
                     subContainer.style.display =
                         subContainer.style.display === "none"
                         ? "block" : "none";
                 };
 
-                container.appendChild(folderDiv);
-                container.appendChild(subContainer);
+                // Folder checkbox logic
+                checkbox.onchange = function(){
+                    let childChecks = subContainer.querySelectorAll("input[type=checkbox]");
+                    childChecks.forEach(cb=>{
+                        cb.checked = checkbox.checked;
+                        cb.dispatchEvent(new Event("change"));
+                    });
+                };
+
+                folderLine.appendChild(checkbox);
+                folderLine.appendChild(toggle);
+
+                wrapper.appendChild(folderLine);
+                wrapper.appendChild(subContainer);
+
+                container.appendChild(wrapper);
 
                 loadFolder(item.path, subContainer);
             }
 
-            // ====== GEOJSON FILE ======
+            // ======= GEOJSON FILE =======
             if(item.name.endsWith(".geojson")){
 
                 let fileDiv = document.createElement("div");
@@ -142,10 +154,9 @@ function loadFolder(path, container){
     .catch(err=>{
         container.innerHTML += "<div>❌ Gagal load</div>";
     });
-
 }
 
-// START LOAD
+// START
 loadFolder(basePath, document.getElementById("tree"));
 
 </script>
