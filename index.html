@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WebGIS GeoSpatialNusantara</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+<script src="https://unpkg.com/leaflet-kmz@latest/dist/leaflet-kmz.js"></script>
+
+<style>
+body { margin:0; font-family:Arial; }
+#map { height:100vh; }
+
+#sidebar{
+ position:absolute;
+ left:0;
+ top:0;
+ width:320px;
+ height:100%;
+ background:white;
+ overflow:auto;
+ z-index:1000;
+ transition:0.3s;
+ padding:10px;
+ box-shadow:2px 0 5px rgba(0,0,0,0.3);
+}
+
+#sidebar.hide{ left:-320px; }
+
+#toggleBtn{
+ position:absolute;
+ top:15px;
+ left:15px;
+ background:white;
+ padding:6px 10px;
+ border-radius:4px;
+ cursor:pointer;
+ z-index:1100;
+ box-shadow:0 0 4px rgba(0,0,0,0.3);
+}
+
+.folder { margin-top:10px; font-weight:bold; }
+.year { margin-left:15px; }
+.file { margin-left:30px; display:block; }
+
+.search{
+ width:100%;
+ padding:6px;
+ margin-bottom:10px;
+}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+<h3>🗂 WebGIS</h3>
+<input type="text" id="search" class="search" placeholder="Search layer...">
+<div id="layerList"></div>
+</div>
+
+<div id="toggleBtn">☰</div>
+<div id="map"></div>
+
+<script>
+
+// =====================
+// MAP CONFIG
+// =====================
+const boundsIndonesia=[[-11.5,94],[6.5,141]];
+
+var map=L.map('map',{
+ maxBounds:boundsIndonesia,
+ minZoom:5,
+ maxZoom:18,
+ zoomControl:false
+}).setView([-2.5,118],5);
+
+// Zoom control kanan bawah basemap
+L.control.zoom({position:'topright'}).addTo(map);
+
+// =====================
+// BASEMAP
+// =====================
+var osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+
+var esriSat=L.tileLayer(
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+);
+
+var esriLabel=L.tileLayer(
+'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+);
+
+var esriGroup=L.layerGroup([esriSat,esriLabel]).addTo(map);
+
+L.control.layers({
+"Esri Satellite":esriGroup,
+"OpenStreetMap":osm
+},null,{position:'topright'}).addTo(map);
+
+// =====================
+// SIDEBAR TOGGLE
+// =====================
+const sidebar=document.getElementById("sidebar");
+const toggleBtn=document.getElementById("toggleBtn");
+
+toggleBtn.onclick=function(){
+ sidebar.classList.remove("hide");
+ toggleBtn.style.display="none";
+};
+
+sidebar.addEventListener("mouseleave",function(){
+ sidebar.classList.add("hide");
+ toggleBtn.style.display="block";
+});
+
+// =====================
+// GITHUB CONFIG
+// =====================
+const user="GeoSpatialNusantara";
+const repo="WebGis";
+const root="file";
+
+const api=`https://api.github.com/repos/${user}/${repo}/contents/${root}`;
+
+let activeLayers={};
+
+function toggleLayer(url){
+ if(activeLayers[url]){
+  map.removeLayer(activeLayers[url]);
+  delete activeLayers[url];
+  return;
+ }
+
+ if(url.endsWith(".zip")){
+  shp(url).then(data=>{
+   let layer=L.geoJSON(data).addTo(map);
+   map.fitBounds(layer.getBounds());
+   activeLayers[url]=layer;
+  });
+ }
+
+ if(url.endsWith(".kmz") || url.endsWith(".kml")){
+  let kmz=new L.KMZ();
+  kmz.load(url);
+  kmz.on("loaded",e=>{
+   map.fitBounds(e.layer.getBounds());
+  });
+  kmz.addTo(map);
+  activeLayers[url]=kmz;
+ }
+}
+
+// =====================
+// LOAD STRUCTURE
+// =====================
+function loadRepo(){
+
+fetch(api)
+.then(r=>r.json())
+.then(categories=>{
+
+ categories.forEach(cat=>{
+  if(cat.type==="dir"){
+
+   let catDiv=document.createElement("div");
+   catDiv.className="folder";
+
+   let catCheck=document.createElement("input");
+   catCheck.type="checkbox";
+
+   catDiv.appendChild(catCheck);
+   catDiv.append(" "+cat.name);
+
+   document.getElementById("layerList").appendChild(catDiv);
+
+   fetch(cat.url)
+   .then(r=>r.json())
+   .then(years=>{
+    years.forEach(year=>{
+     if(year.type==="dir"){
+
+      let yearDiv=document.createElement("div");
+      yearDiv.className="year";
+
+      let yearCheck=document.createElement("input");
+      yearCheck.type="checkbox";
+
+      yearDiv.appendChild(yearCheck);
+      yearDiv.append(" "+year.name);
+
+      document.getElementById("layerList").appendChild(yearDiv);
+
+      fetch(year.url)
+      .then(r=>r.json())
+      .then(files=>{
+       files.forEach(file=>{
+        if(file.name.endsWith(".zip") || file.name.endsWith(".kmz") || file.name.endsWith(".kml")){
+
+         let fileLabel=document.createElement("label");
+         fileLabel.className="file";
+
+         let fileCheck=document.createElement("input");
+         fileCheck.type="checkbox";
+         fileCheck.onchange=function(){
+          toggleLayer(file.download_url);
+         };
+
+         fileLabel.appendChild(fileCheck);
+         fileLabel.append(" "+file.name);
+
+         document.getElementById("layerList").appendChild(fileLabel);
+        }
+       });
+      });
+
+     }
+    });
+   });
+
+  }
+ });
+
+});
+
+}
+
+loadRepo();
+
+// =====================
+// SEARCH
+// =====================
+document.getElementById("search").addEventListener("keyup",function(){
+ let value=this.value.toLowerCase();
+ let items=document.querySelectorAll(".file");
+
+ items.forEach(item=>{
+  item.style.display=item.innerText.toLowerCase().includes(value)?"":"none";
+ });
+});
+
+</script>
+</body>
+</html>
