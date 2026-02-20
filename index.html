@@ -1,91 +1,97 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8"/>
 <title>WebGIS - GeoSpatialNusantara</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
 
 <style>
-body{margin:0;font-family:Arial, sans-serif;overflow:hidden;}
-#map{height:100vh;width:100%;}
+html,body{margin:0;height:100%;font-family:Segoe UI;}
+#map{height:100%;width:100%;}
 
-/* ===== SIDEBAR ===== */
-#sidebar{
-    position:absolute;
-    top:0;
-    right:0;
-    width:360px;
-    height:100vh;
-    background:#f4f4f4;
-    border-left:1px solid #ccc;
-    padding:15px;
-    box-sizing:border-box;
-    overflow:auto;
-    transform:translateX(100%);
-    transition:0.3s;
-    z-index:1000;
-}
-#sidebar.active{transform:translateX(0);}
-
-#toggleBtn{
-    position:absolute;
-    top:15px;
-    right:15px;
-    z-index:1100;
-    background:white;
-    border:none;
-    padding:8px 12px;
-    font-size:18px;
-    border-radius:6px;
-    box-shadow:0 2px 6px rgba(0,0,0,0.2);
-    cursor:pointer;
+.sidebar{
+position:absolute;
+right:0;top:0;
+width:330px;height:100%;
+background:#ffffff;
+overflow:auto;
+box-shadow:-4px 0 15px rgba(0,0,0,0.2);
+padding:15px;
+z-index:1000;
 }
 
-/* ===== STRUCTURE ===== */
-.row{
-    display:flex;
-    align-items:center;
-    margin-top:8px;
+h2{margin-top:0;}
+
+.category{
+font-weight:bold;
+margin-top:12px;
+cursor:pointer;
+padding:6px;
+background:#f1f1f1;
+border-radius:6px;
 }
 
-.label{
-    cursor:pointer;
-    user-select:none;
+.year{
+margin-left:15px;
+margin-top:6px;
+display:flex;
+align-items:center;
+cursor:pointer;
 }
 
-.category-label{
-    font-weight:bold;
-}
-
-.year-label{
-    margin-left:10px;
-}
-
-/* Toggle kecil abu */
 .toggle{
-    width:12px;
-    height:12px;
-    border-radius:50%;
-    border:2px solid #888;
-    margin-right:8px;
-    cursor:pointer;
-    transition:0.2s;
-}
-.toggle.active{
-    background:#666;
-    border-color:#666;
+width:14px;height:14px;
+border-radius:50%;
+background:#ccc;
+margin-right:8px;
+transition:0.3s;
 }
 
-.children{display:none;margin-left:15px;}
-.children.active{display:block;}
+.toggle.active{background:#2ecc71;}
 
-.leaflet-tooltip{
-    background:white;
-    border-radius:6px;
-    padding:4px 8px;
-    font-weight:bold;
-    border:1px solid #ccc;
+.basemap-btn{
+position:absolute;
+top:12px;left:12px;
+background:white;
+padding:8px 10px;
+border-radius:6px;
+cursor:pointer;
+box-shadow:0 2px 6px rgba(0,0,0,0.3);
+z-index:1200;
+}
+
+.basemap-menu{
+position:absolute;
+top:55px;left:12px;
+background:white;
+padding:10px;
+border-radius:6px;
+display:none;
+box-shadow:0 2px 8px rgba(0,0,0,0.3);
+z-index:1200;
+}
+
+.basemap-menu div{
+padding:5px;
+cursor:pointer;
+}
+.basemap-menu div:hover{
+background:#eee;
+}
+
+.loading{
+position:absolute;
+top:50%;left:50%;
+transform:translate(-50%,-50%);
+background:white;
+padding:15px 25px;
+border-radius:8px;
+box-shadow:0 0 15px rgba(0,0,0,0.3);
+z-index:2000;
+display:none;
 }
 </style>
 </head>
@@ -93,211 +99,172 @@ body{margin:0;font-family:Arial, sans-serif;overflow:hidden;}
 <body>
 
 <div id="map"></div>
-<button id="toggleBtn">☰</button>
 
-<div id="sidebar">
-    <h2>Layer Control</h2>
-    <div id="fileList">Loading...</div>
+<div class="basemap-btn" onclick="toggleBasemap()">☰</div>
+<div class="basemap-menu" id="basemapMenu">
+<div onclick="setBasemap('osm')">OpenStreetMap</div>
+<div onclick="setBasemap('sat')">Satellite</div>
+<div onclick="setBasemap('topo')">Topo</div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+<div class="sidebar">
+<h2>Layer Control</h2>
+<div id="layerList"></div>
+</div>
+
+<div class="loading" id="loading">Loading Data...</div>
 
 <script>
 
-// ===== CONFIG =====
-const OWNER = "GeoSpatialNusantara";
-const REPO = "WebGis";
-const ROOT_FOLDER = "file";
-const BRANCH = "main";
-const markerImage = "./img/point-of-interest.png";
+const username="GeoSpatialNusantara";
+const repo="WebGis";
+const branch="main";
+const rootFolder="file";
 
-let layerStore = {};
-let markerStore = {};
+var map=L.map('map').setView([-2.5,118],5);
 
-// ===== MAP =====
-const map = L.map('map',{minZoom:5,maxZoom:18})
-.setView([-2.5,118],5);
+var basemaps={
+osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+sat:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'),
+topo:L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png')
+};
 
-L.tileLayer(
-'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-{ subdomains:['mt0','mt1','mt2','mt3'] }
-).addTo(map);
+basemaps.osm.addTo(map);
 
-document.getElementById("toggleBtn")
-.addEventListener("click",()=>{
-    document.getElementById("sidebar")
-    .classList.toggle("active");
+function toggleBasemap(){
+let m=document.getElementById("basemapMenu");
+m.style.display=m.style.display==="block"?"none":"block";
+}
+
+function setBasemap(name){
+Object.values(basemaps).forEach(l=>map.removeLayer(l));
+basemaps[name].addTo(map);
+}
+
+let loadedLayers={};
+
+function showLoading(state){
+document.getElementById("loading").style.display=state?"block":"none";
+}
+
+showLoading(true);
+
+fetch(`https://api.github.com/repos/${username}/${repo}/git/trees/${branch}?recursive=1`)
+.then(res=>res.json())
+.then(data=>{
+
+let files=data.tree.filter(item=>
+item.path.startsWith(rootFolder+"/") &&
+(item.path.endsWith(".kml")||
+ item.path.endsWith(".kmz")||
+ item.path.endsWith(".zip"))
+);
+
+let structure={};
+
+files.forEach(file=>{
+let parts=file.path.split("/");
+let kategori=parts[1];
+let tahun=parts[2];
+
+if(!structure[kategori])structure[kategori]={};
+if(!structure[kategori][tahun])structure[kategori][tahun]=[];
+
+structure[kategori][tahun].push(file);
 });
 
-function createIcon(size){
-    return L.icon({
-        iconUrl:markerImage,
-        iconSize:[size,size],
-        iconAnchor:[size/2,size]
-    });
-}
+buildSidebar(structure);
+showLoading(false);
 
-async function fetchGitHub(path){
-    const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
-    const res=await fetch(url);
-    return await res.json();
-}
-
-// ===== LOAD STRUCTURE =====
-async function loadStructure(){
-
-    const container=document.getElementById("fileList");
-    container.innerHTML="";
-
-    const categories = await fetchGitHub(ROOT_FOLDER);
-
-    for(const cat of categories){
-        if(cat.type!=="dir") continue;
-
-        // ===== CATEGORY ROW =====
-        const catRow=document.createElement("div");
-        catRow.className="row";
-
-        const catToggle=document.createElement("div");
-        catToggle.className="toggle active";
-
-        const catLabel=document.createElement("span");
-        catLabel.className="label category-label";
-        catLabel.innerHTML="▶ "+cat.name;
-
-        catRow.appendChild(catToggle);
-        catRow.appendChild(catLabel);
-        container.appendChild(catRow);
-
-        const yearContainer=document.createElement("div");
-        yearContainer.className="children active";
-        container.appendChild(yearContainer);
-
-        // Expand collapse kategori
-        catLabel.onclick=()=>{
-            yearContainer.classList.toggle("active");
-            catLabel.innerHTML=yearContainer.classList.contains("active")
-                ? "▼ "+cat.name
-                : "▶ "+cat.name;
-        };
-
-        // Toggle kategori ON/OFF
-        catToggle.onclick=(e)=>{
-            e.stopPropagation();
-            catToggle.classList.toggle("active");
-            const active=catToggle.classList.contains("active");
-
-            for(let key in layerStore){
-                if(key.startsWith(cat.path)){
-                    if(active){
-                        map.addLayer(layerStore[key]);
-                        map.addLayer(markerStore[key]);
-                    }else{
-                        map.removeLayer(layerStore[key]);
-                        map.removeLayer(markerStore[key]);
-                    }
-                }
-            }
-        };
-
-        const years=await fetchGitHub(cat.path);
-
-        for(const year of years){
-            if(year.type!=="dir") continue;
-
-            // ===== YEAR ROW =====
-            const yearRow=document.createElement("div");
-            yearRow.className="row";
-
-            const yearToggle=document.createElement("div");
-            yearToggle.className="toggle active";
-
-            const yearLabel=document.createElement("span");
-            yearLabel.className="label year-label";
-            yearLabel.textContent=year.name;
-
-            yearRow.appendChild(yearToggle);
-            yearRow.appendChild(yearLabel);
-            yearContainer.appendChild(yearRow);
-
-            const files=await fetchGitHub(year.path);
-
-            for(const file of files){
-                if(!file.name.endsWith(".zip")) continue;
-
-                await loadLayer(
-                    file.path,
-                    file.download_url,
-                    file.name.replace(".zip","")
-                );
-            }
-
-            // Toggle tahun ON/OFF
-            yearToggle.onclick=(e)=>{
-                e.stopPropagation();
-                yearToggle.classList.toggle("active");
-                const active=yearToggle.classList.contains("active");
-
-                for(let key in layerStore){
-                    if(key.startsWith(year.path)){
-                        if(active){
-                            map.addLayer(layerStore[key]);
-                            map.addLayer(markerStore[key]);
-                        }else{
-                            map.removeLayer(layerStore[key]);
-                            map.removeLayer(markerStore[key]);
-                        }
-                    }
-                }
-            };
-        }
-    }
-}
-
-// ===== LOAD LAYER =====
-async function loadLayer(key,url,name){
-
-    const res=await fetch(url);
-    const arrayBuffer=await res.arrayBuffer();
-    const data=await shp(arrayBuffer);
-
-    const layer=L.geoJSON(data).addTo(map);
-    layerStore[key]=layer;
-
-    const center=layer.getBounds().getCenter();
-    const size=Math.max(35,map.getZoom()*2);
-
-    const marker=L.marker(center,{icon:createIcon(size)}).addTo(map);
-
-    marker.bindTooltip(name,{direction:"top"});
-
-    marker.on("mouseover",()=>{
-        marker.setIcon(createIcon(size*1.4));
-        marker.openTooltip();
-    });
-
-    marker.on("mouseout",()=>{
-        marker.setIcon(createIcon(size));
-        marker.closeTooltip();
-    });
-
-    marker.on("click",()=>{
-        map.fitBounds(layer.getBounds());
-    });
-
-    markerStore[key]=marker;
-}
-
-// Resize marker saat zoom
-map.on("zoomend",()=>{
-    const size=Math.max(35,map.getZoom()*2);
-    for(let key in markerStore){
-        markerStore[key].setIcon(createIcon(size));
-    }
 });
 
-loadStructure();
+function randomColor(){
+return '#'+Math.floor(Math.random()*16777215).toString(16);
+}
+
+function buildSidebar(structure){
+
+const container=document.getElementById("layerList");
+
+Object.keys(structure).forEach(kategori=>{
+
+let catDiv=document.createElement("div");
+catDiv.className="category";
+catDiv.innerHTML="▼ "+kategori;
+
+let yearContainer=document.createElement("div");
+yearContainer.style.display="none";
+
+catDiv.onclick=()=>{
+yearContainer.style.display=
+yearContainer.style.display==="none"?"block":"none";
+};
+
+container.appendChild(catDiv);
+container.appendChild(yearContainer);
+
+Object.keys(structure[kategori]).forEach(tahun=>{
+
+let yearDiv=document.createElement("div");
+yearDiv.className="year";
+
+let toggle=document.createElement("span");
+toggle.className="toggle";
+
+let label=document.createElement("span");
+label.innerText=tahun;
+
+yearDiv.appendChild(toggle);
+yearDiv.appendChild(label);
+yearContainer.appendChild(yearDiv);
+
+toggle.onclick=()=>{
+
+if(toggle.classList.contains("active")){
+toggle.classList.remove("active");
+if(loadedLayers[kategori+tahun])
+map.removeLayer(loadedLayers[kategori+tahun]);
+}
+else{
+toggle.classList.add("active");
+
+let group=L.layerGroup();
+let color=randomColor();
+
+structure[kategori][tahun].forEach(file=>{
+
+let rawUrl=
+`https://raw.githubusercontent.com/${username}/${repo}/${branch}/${file.path}`;
+
+let layer=omnivore.kml(rawUrl);
+
+layer.on('ready',function(){
+map.fitBounds(layer.getBounds());
+});
+
+layer.eachLayer(function(l){
+l.setStyle&&l.setStyle({color:color});
+let cleanName=file.path.split("/").pop()
+.replace(".zip","")
+.replace(".kml","")
+.replace(".kmz","");
+l.bindTooltip(cleanName);
+});
+
+layer.addTo(group);
+
+});
+
+group.addTo(map);
+loadedLayers[kategori+tahun]=group;
+}
+};
+
+});
+
+});
+
+}
 
 </script>
 </body>
