@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS Auto Load GitHub</title>
+<title>WebGIS Auto Folder Tree</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -18,101 +18,135 @@ body { margin:0; display:flex; font-family:Arial; }
     border-right:1px solid #ccc;
 }
 #map{ flex:1; height:100vh; }
-.file-item { margin-left:15px; }
+
+.folder {
+    font-weight:bold;
+    cursor:pointer;
+    margin-top:8px;
+}
+
+.file {
+    margin-left:20px;
+}
+
+.subfolder {
+    margin-left:15px;
+}
 </style>
 </head>
 
 <body>
 
 <div id="sidebar">
-    <h3>📂 Batimetri MBES 2025</h3>
-    <div id="fileList">Loading...</div>
+    <h3>📂 Repository Layers</h3>
+    <div id="tree">Loading folder...</div>
 </div>
 
 <div id="map"></div>
 
 <script>
 
-// ================== MAP ==================
+// ================= MAP =================
 var map = L.map("map").setView([-2.5,117.5],5);
 
-var osm = L.tileLayer(
+L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     { attribution:"© OpenStreetMap" }
 ).addTo(map);
 
-var satellite = L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    { attribution:"Tiles © Esri" }
-);
-
-L.control.layers({
-    "OpenStreetMap": osm,
-    "Satellite": satellite
-}).addTo(map);
-
 let activeLayers = {};
 
-// ================== AUTO LOAD FILE LIST ==================
-
+// ================= CONFIG =================
 const repo = "GeoSpatialNusantara/WebGis";
-const folderPath = "file/Batimetri MBES/2025";
+const basePath = "file";
 
-fetch(`https://api.github.com/repos/${repo}/contents/${folderPath}`)
-.then(res => res.json())
-.then(files => {
+// ================= RECURSIVE FOLDER LOAD =================
 
-    const container = document.getElementById("fileList");
-    container.innerHTML = "";
+function loadFolder(path, container){
 
-    files.forEach(file => {
+    fetch(`https://api.github.com/repos/${repo}/contents/${path}`)
+    .then(res => res.json())
+    .then(items => {
 
-        if(file.name.endsWith(".geojson")){
+        items.forEach(item => {
 
-            const div = document.createElement("div");
-            div.className = "file-item";
+            // ====== SUBFOLDER ======
+            if(item.type === "dir"){
 
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
+                let folderDiv = document.createElement("div");
+                folderDiv.className = "folder";
+                folderDiv.textContent = "📁 " + item.name;
 
-            checkbox.onchange = function(){
+                let subContainer = document.createElement("div");
+                subContainer.className = "subfolder";
+                subContainer.style.display = "none";
 
-                if(this.checked){
+                folderDiv.onclick = function(){
+                    subContainer.style.display =
+                        subContainer.style.display === "none"
+                        ? "block" : "none";
+                };
 
-                    fetch(file.download_url)
-                    .then(r => r.json())
-                    .then(data => {
-                        let layer = L.geoJSON(data).addTo(map);
-                        activeLayers[file.name] = layer;
+                container.appendChild(folderDiv);
+                container.appendChild(subContainer);
 
-                        if(layer.getBounds().isValid()){
-                            map.fitBounds(layer.getBounds());
+                loadFolder(item.path, subContainer);
+            }
+
+            // ====== GEOJSON FILE ======
+            if(item.name.endsWith(".geojson")){
+
+                let fileDiv = document.createElement("div");
+                fileDiv.className = "file";
+
+                let checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+
+                checkbox.onchange = function(){
+
+                    if(this.checked){
+
+                        fetch(item.download_url)
+                        .then(r => r.json())
+                        .then(data => {
+
+                            let layer = L.geoJSON(data).addTo(map);
+                            activeLayers[item.path] = layer;
+
+                            if(layer.getBounds().isValid()){
+                                map.fitBounds(layer.getBounds());
+                            }
+
+                        });
+
+                    } else {
+
+                        if(activeLayers[item.path]){
+                            map.removeLayer(activeLayers[item.path]);
+                            delete activeLayers[item.path];
                         }
-                    });
 
-                } else {
-
-                    if(activeLayers[file.name]){
-                        map.removeLayer(activeLayers[file.name]);
-                        delete activeLayers[file.name];
                     }
 
-                }
+                };
 
-            };
+                fileDiv.appendChild(checkbox);
+                fileDiv.appendChild(document.createTextNode(" " + item.name));
 
-            div.appendChild(checkbox);
-            div.appendChild(document.createTextNode(" " + file.name));
-            container.appendChild(div);
-        }
+                container.appendChild(fileDiv);
+            }
 
+        });
+
+    })
+    .catch(err=>{
+        container.innerHTML += "<div>❌ Gagal load</div>";
     });
 
-})
-.catch(err=>{
-    document.getElementById("fileList").innerHTML =
-        "Gagal load folder. Pastikan repo public.";
-});
+}
+
+// START LOAD
+loadFolder(basePath, document.getElementById("tree"));
 
 </script>
 
