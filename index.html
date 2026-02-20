@@ -1,303 +1,222 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8" />
 <title>WebGIS - GeoSpatialNusantara</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-omnivore/leaflet-omnivore.min.js"></script>
 
 <style>
-body{margin:0;font-family:Arial, sans-serif;overflow:hidden;}
-#map{height:100vh;width:100%;}
+html, body { margin:0; height:100%; }
+#map { height:100%; width:100%; }
 
-/* ===== SIDEBAR ===== */
-#sidebar{
-    position:absolute;
-    top:0;
-    right:0;
-    width:360px;
-    height:100vh;
-    background:#f4f4f4;
-    border-left:1px solid #ccc;
-    padding:15px;
-    box-sizing:border-box;
-    overflow:auto;
-    transform:translateX(100%);
-    transition:0.3s;
-    z-index:1000;
-}
-#sidebar.active{transform:translateX(0);}
-
-#toggleBtn{
-    position:absolute;
-    top:15px;
-    right:15px;
-    z-index:1100;
-    background:white;
-    border:none;
-    padding:8px 12px;
-    font-size:18px;
-    border-radius:6px;
-    box-shadow:0 2px 6px rgba(0,0,0,0.2);
-    cursor:pointer;
+.sidebar {
+  position:absolute;
+  top:0;
+  right:0;
+  width:320px;
+  height:100%;
+  background:white;
+  overflow:auto;
+  padding:15px;
+  box-shadow:-3px 0 8px rgba(0,0,0,0.3);
+  z-index:1000;
 }
 
-/* ===== STRUCTURE ===== */
-.row{
-    display:flex;
-    align-items:center;
-    margin-top:8px;
+.layer-item { margin-left:10px; }
+.category { font-weight:bold; cursor:pointer; margin-top:10px; }
+.year { margin-left:15px; }
+
+.toggle {
+  display:inline-block;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  background:#ccc;
+  margin-right:6px;
+  cursor:pointer;
+}
+.toggle.active { background:green; }
+
+.basemap-btn {
+  position:absolute;
+  top:10px;
+  left:10px;
+  z-index:1100;
+  background:white;
+  padding:8px;
+  cursor:pointer;
+  border-radius:4px;
+  box-shadow:0 0 5px rgba(0,0,0,0.3);
 }
 
-.label{
-    cursor:pointer;
-    user-select:none;
+.basemap-menu {
+  position:absolute;
+  top:50px;
+  left:10px;
+  background:white;
+  padding:10px;
+  display:none;
+  box-shadow:0 0 5px rgba(0,0,0,0.3);
+  z-index:1100;
 }
-
-.category-label{
-    font-weight:bold;
-}
-
-.year-label{
-    margin-left:10px;
-}
-
-/* Toggle kecil abu */
-.toggle{
-    width:12px;
-    height:12px;
-    border-radius:50%;
-    border:2px solid #888;
-    margin-right:8px;
-    cursor:pointer;
-    transition:0.2s;
-}
-.toggle.active{
-    background:#666;
-    border-color:#666;
-}
-
-.children{display:none;margin-left:15px;}
-.children.active{display:block;}
-
-.leaflet-tooltip{
-    background:white;
-    border-radius:6px;
-    padding:4px 8px;
-    font-weight:bold;
-    border:1px solid #ccc;
+.basemap-menu div {
+  cursor:pointer;
+  margin-bottom:5px;
 }
 </style>
 </head>
-
 <body>
 
 <div id="map"></div>
-<button id="toggleBtn">☰</button>
 
-<div id="sidebar">
-    <h2>Layer Control</h2>
-    <div id="fileList">Loading...</div>
+<!-- Basemap Button -->
+<div class="basemap-btn" onclick="toggleBasemap()">☰</div>
+
+<div class="basemap-menu" id="basemapMenu">
+  <div onclick="setBasemap('osm')">OpenStreetMap</div>
+  <div onclick="setBasemap('sat')">Satellite</div>
+  <div onclick="setBasemap('topo')">Topo</div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+<!-- Sidebar -->
+<div class="sidebar">
+  <h2>Layer Control</h2>
+  <div id="layerList"></div>
+</div>
 
 <script>
 
-// ===== CONFIG =====
-const OWNER = "GeoSpatialNusantara";
-const REPO = "WebGis";
-const ROOT_FOLDER = "file";
-const BRANCH = "main";
-const markerImage = "./img/point-of-interest.png";
+var map = L.map('map').setView([-2.5, 118], 5);
 
-let layerStore = {};
-let markerStore = {};
+var basemaps = {
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+  sat: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png')
+};
 
-// ===== MAP =====
-const map = L.map('map',{minZoom:5,maxZoom:18})
-.setView([-2.5,118],5);
+basemaps.osm.addTo(map);
 
-L.tileLayer(
-'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-{ subdomains:['mt0','mt1','mt2','mt3'] }
-).addTo(map);
-
-document.getElementById("toggleBtn")
-.addEventListener("click",()=>{
-    document.getElementById("sidebar")
-    .classList.toggle("active");
-});
-
-function createIcon(size){
-    return L.icon({
-        iconUrl:markerImage,
-        iconSize:[size,size],
-        iconAnchor:[size/2,size]
-    });
+function toggleBasemap(){
+  var menu = document.getElementById("basemapMenu");
+  menu.style.display = menu.style.display === "block" ? "none" : "block";
 }
 
-async function fetchGitHub(path){
-    const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
-    const res=await fetch(url);
-    return await res.json();
+function setBasemap(name){
+  for (var key in basemaps) map.removeLayer(basemaps[key]);
+  basemaps[name].addTo(map);
 }
 
-// ===== LOAD STRUCTURE =====
-async function loadStructure(){
+const username = "GeoSpatialNusantara";
+const repo = "WebGis";
+const root_folder = "file";
 
-    const container=document.getElementById("fileList");
-    container.innerHTML="";
+let loadedLayers = {};
 
-    const categories = await fetchGitHub(ROOT_FOLDER);
+fetch(`https://api.github.com/repos/${username}/${repo}/contents/${root_folder}`)
+.then(res => res.json())
+.then(categories => {
 
-    for(const cat of categories){
-        if(cat.type!=="dir") continue;
+  categories.forEach(cat => {
+    if(cat.type === "dir") {
 
-        // ===== CATEGORY ROW =====
-        const catRow=document.createElement("div");
-        catRow.className="row";
+      let catDiv = document.createElement("div");
+      catDiv.className = "category";
+      catDiv.innerHTML = "▼ " + cat.name;
 
-        const catToggle=document.createElement("div");
-        catToggle.className="toggle active";
+      let yearContainer = document.createElement("div");
+      yearContainer.style.display = "none";
 
-        const catLabel=document.createElement("span");
-        catLabel.className="label category-label";
-        catLabel.innerHTML="▶ "+cat.name;
+      catDiv.onclick = function(){
+        yearContainer.style.display =
+          yearContainer.style.display === "none" ? "block" : "none";
+      };
 
-        catRow.appendChild(catToggle);
-        catRow.appendChild(catLabel);
-        container.appendChild(catRow);
+      document.getElementById("layerList").appendChild(catDiv);
+      document.getElementById("layerList").appendChild(yearContainer);
 
-        const yearContainer=document.createElement("div");
-        yearContainer.className="children active";
-        container.appendChild(yearContainer);
+      // LOAD TAHUN
+      fetch(cat.url)
+      .then(res => res.json())
+      .then(years => {
 
-        // Expand collapse kategori
-        catLabel.onclick=()=>{
-            yearContainer.classList.toggle("active");
-            catLabel.innerHTML=yearContainer.classList.contains("active")
-                ? "▼ "+cat.name
-                : "▶ "+cat.name;
-        };
+        years.forEach(year => {
+          if(year.type === "dir") {
 
-        // Toggle kategori ON/OFF
-        catToggle.onclick=(e)=>{
-            e.stopPropagation();
-            catToggle.classList.toggle("active");
-            const active=catToggle.classList.contains("active");
+            let yearDiv = document.createElement("div");
+            yearDiv.className = "year";
 
-            for(let key in layerStore){
-                if(key.startsWith(cat.path)){
-                    if(active){
-                        map.addLayer(layerStore[key]);
-                        map.addLayer(markerStore[key]);
-                    }else{
-                        map.removeLayer(layerStore[key]);
-                        map.removeLayer(markerStore[key]);
-                    }
+            let toggle = document.createElement("span");
+            toggle.className = "toggle";
+
+            let label = document.createElement("span");
+            label.innerText = year.name;
+
+            yearDiv.appendChild(toggle);
+            yearDiv.appendChild(label);
+            yearContainer.appendChild(yearDiv);
+
+            toggle.onclick = function(){
+
+              if(toggle.classList.contains("active")) {
+                toggle.classList.remove("active");
+
+                if(loadedLayers[year.path]) {
+                  map.removeLayer(loadedLayers[year.path]);
                 }
-            }
-        };
 
-        const years=await fetchGitHub(cat.path);
+              } else {
 
-        for(const year of years){
-            if(year.type!=="dir") continue;
+                toggle.classList.add("active");
 
-            // ===== YEAR ROW =====
-            const yearRow=document.createElement("div");
-            yearRow.className="row";
+                fetch(year.url)
+                .then(res => res.json())
+                .then(files => {
 
-            const yearToggle=document.createElement("div");
-            yearToggle.className="toggle active";
+                  files.forEach(file => {
 
-            const yearLabel=document.createElement("span");
-            yearLabel.className="label year-label";
-            yearLabel.textContent=year.name;
+                    if(file.name.endsWith(".kml") || 
+                       file.name.endsWith(".kmz") ||
+                       file.name.endsWith(".zip")) {
 
-            yearRow.appendChild(yearToggle);
-            yearRow.appendChild(yearLabel);
-            yearContainer.appendChild(yearRow);
+                      let rawUrl = `https://raw.githubusercontent.com/${username}/${repo}/main/${file.path}`;
 
-            const files=await fetchGitHub(year.path);
+                      let layer = omnivore.kml(rawUrl)
+                        .on('ready', function() {
+                          map.fitBounds(layer.getBounds());
+                        })
+                        .on('mouseover', function(e){
+                          let cleanName = file.name
+                            .replace(".zip","")
+                            .replace(".kml","")
+                            .replace(".kmz","");
 
-            for(const file of files){
-                if(!file.name.endsWith(".zip")) continue;
+                          e.layer.bindTooltip(cleanName).openTooltip();
+                        })
+                        .addTo(map);
 
-                await loadLayer(
-                    file.path,
-                    file.download_url,
-                    file.name.replace(".zip","")
-                );
-            }
-
-            // Toggle tahun ON/OFF
-            yearToggle.onclick=(e)=>{
-                e.stopPropagation();
-                yearToggle.classList.toggle("active");
-                const active=yearToggle.classList.contains("active");
-
-                for(let key in layerStore){
-                    if(key.startsWith(year.path)){
-                        if(active){
-                            map.addLayer(layerStore[key]);
-                            map.addLayer(markerStore[key]);
-                        }else{
-                            map.removeLayer(layerStore[key]);
-                            map.removeLayer(markerStore[key]);
-                        }
+                      loadedLayers[year.path] = layer;
                     }
-                }
+
+                  });
+
+                });
+
+              }
+
             };
-        }
+
+          }
+        });
+
+      });
+
     }
-}
+  });
 
-// ===== LOAD LAYER =====
-async function loadLayer(key,url,name){
-
-    const res=await fetch(url);
-    const arrayBuffer=await res.arrayBuffer();
-    const data=await shp(arrayBuffer);
-
-    const layer=L.geoJSON(data).addTo(map);
-    layerStore[key]=layer;
-
-    const center=layer.getBounds().getCenter();
-    const size=Math.max(35,map.getZoom()*2);
-
-    const marker=L.marker(center,{icon:createIcon(size)}).addTo(map);
-
-    marker.bindTooltip(name,{direction:"top"});
-
-    marker.on("mouseover",()=>{
-        marker.setIcon(createIcon(size*1.4));
-        marker.openTooltip();
-    });
-
-    marker.on("mouseout",()=>{
-        marker.setIcon(createIcon(size));
-        marker.closeTooltip();
-    });
-
-    marker.on("click",()=>{
-        map.fitBounds(layer.getBounds());
-    });
-
-    markerStore[key]=marker;
-}
-
-// Resize marker saat zoom
-map.on("zoomend",()=>{
-    const size=Math.max(35,map.getZoom()*2);
-    for(let key in markerStore){
-        markerStore[key].setIcon(createIcon(size));
-    }
 });
-
-loadStructure();
 
 </script>
 </body>
