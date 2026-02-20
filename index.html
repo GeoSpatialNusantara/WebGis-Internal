@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS - GitHub Layer Loader</title>
+<title>WebGIS - GitHub Loader</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -30,7 +30,6 @@ body { margin:0; display:flex; font-family:Arial; }
 .layer-item{
     margin-top:5px;
 }
-
 </style>
 </head>
 
@@ -50,30 +49,25 @@ body { margin:0; display:flex; font-family:Arial; }
 // ======================================
 var map = L.map("map").setView([-2.5,117.5],5);
 
-// Basemap OSM
 var osm = L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     { attribution:"© OpenStreetMap" }
 ).addTo(map);
 
-// Basemap Satellite
 var satellite = L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     { attribution:"Tiles © Esri" }
 );
 
-// Layer switcher
 L.control.layers({
     "OpenStreetMap": osm,
     "Satellite": satellite
 }).addTo(map);
 
 // ======================================
-// 2️⃣ SEARCH CONTROL
+// 2️⃣ SEARCH
 // ======================================
-L.Control.geocoder({
-    defaultMarkGeocode:true
-}).addTo(map);
+L.Control.geocoder({defaultMarkGeocode:true}).addTo(map);
 
 // ======================================
 // 3️⃣ GITHUB CONFIG
@@ -106,7 +100,7 @@ function createCheckbox(name, indent=0){
 }
 
 // ======================================
-// 5️⃣ LOAD FOLDER RECURSIVE
+// 5️⃣ LOAD FOLDER RECURSIVE (FIXED RAW URL)
 // ======================================
 async function loadFolder(path, container, indent=0){
 
@@ -115,9 +109,7 @@ async function loadFolder(path, container, indent=0){
 
     for(const item of items){
 
-        // ==========================
-        // FOLDER (WITH CHECKBOX)
-        // ==========================
+        // FOLDER
         if(item.type === "dir"){
 
             let {wrapper, checkbox} = createCheckbox(item.name, indent);
@@ -128,24 +120,22 @@ async function loadFolder(path, container, indent=0){
 
             checkbox.onchange = function(){
 
-                let childCheckboxes = subContainer.querySelectorAll("input[type=checkbox]");
+                let children = subContainer.querySelectorAll("input[type=checkbox]");
 
-                childCheckboxes.forEach(child=>{
+                children.forEach(child=>{
                     child.checked = checkbox.checked;
                     child.dispatchEvent(new Event("change"));
                 });
-
             };
 
             await loadFolder(item.url, subContainer, indent+1);
         }
 
-        // ==========================
         // FILE GEOJSON
-        // ==========================
         if(item.type === "file" && item.name.endsWith(".geojson")){
 
-            let rawURL = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${item.path}`;
+            // ✅ RAW URL FIX (PENTING)
+            let rawURL = item.download_url;
 
             let {wrapper, checkbox} = createCheckbox(item.name, indent);
             container.appendChild(wrapper);
@@ -176,6 +166,9 @@ async function loadFolder(path, container, indent=0){
                             map.fitBounds(geo.getBounds());
                         }
 
+                    })
+                    .catch(err=>{
+                        console.error("Gagal load:", err);
                     });
 
                 } else {
@@ -184,17 +177,13 @@ async function loadFolder(path, container, indent=0){
                         map.removeLayer(activeLayers[item.path]);
                         delete activeLayers[item.path];
                     }
-
                 }
-
             };
         }
     }
 }
 
-// ======================================
-// 6️⃣ RUN LOADER
-// ======================================
+// RUN
 loadFolder(apiURL, document.getElementById("folderList"));
 
 </script>
