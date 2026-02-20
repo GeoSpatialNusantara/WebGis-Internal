@@ -99,90 +99,63 @@ function createCheckbox(name, indent=0){
     return {wrapper, checkbox};
 }
 
-// ======================================
-// 5️⃣ LOAD FOLDER RECURSIVE (FIXED RAW URL)
-// ======================================
-async function loadFolder(path, container, indent=0){
+// recursive loader folder (WITH CHECKBOX FOLDER)
+async function loadFolders(path, container, indent=0){
 
     const response = await fetch(path);
     const items = await response.json();
 
     for(const item of items){
 
-        // FOLDER
+        // =========================
+        // FOLDER (PAKAI CHECKBOX)
+        // =========================
         if(item.type === "dir"){
 
-            let {wrapper, checkbox} = createCheckbox(item.name, indent);
+            let wrapper = document.createElement("div");
+            wrapper.className = "checkbox-item";
+            wrapper.style.marginLeft = (indent * 15) + "px";
+
+            let folderCheckbox = document.createElement("input");
+            folderCheckbox.type = "checkbox";
+
+            wrapper.appendChild(folderCheckbox);
+            wrapper.appendChild(document.createTextNode(" " + item.name));
             container.appendChild(wrapper);
 
-            let subContainer = document.createElement("div");
-            container.appendChild(subContainer);
+            let subCont = document.createElement("div");
+            container.appendChild(subCont);
 
-            checkbox.onchange = function(){
+            // Jika folder dicentang → semua child ikut
+            folderCheckbox.onchange = function(){
 
-                let children = subContainer.querySelectorAll("input[type=checkbox]");
+                let childCheckboxes = subCont.querySelectorAll("input[type=checkbox]");
 
-                children.forEach(child=>{
-                    child.checked = checkbox.checked;
-                    child.dispatchEvent(new Event("change"));
+                childCheckboxes.forEach(cb=>{
+                    cb.checked = folderCheckbox.checked;
+                    cb.dispatchEvent(new Event("change"));
                 });
+
             };
 
-            await loadFolder(item.url, subContainer, indent+1);
+            await loadFolders(item.url, subCont, indent+1);
         }
 
+        // =========================
         // FILE GEOJSON
+        // =========================
         if(item.type === "file" && item.name.endsWith(".geojson")){
 
-            // ✅ RAW URL FIX (PENTING)
+            // 🔥 Gunakan download_url agar pasti benar
             let rawURL = item.download_url;
 
-            let {wrapper, checkbox} = createCheckbox(item.name, indent);
-            container.appendChild(wrapper);
-
-            checkbox.onchange = function(){
-
-                if(checkbox.checked){
-
-                    fetch(rawURL)
-                    .then(res=>res.json())
-                    .then(data=>{
-
-                        let geo = L.geoJSON(data,{
-                            onEachFeature:function(feature, layer){
-                                if(feature.properties){
-                                    layer.bindPopup(
-                                        Object.entries(feature.properties)
-                                        .map(([k,v]) => k + ": " + v)
-                                        .join("<br>")
-                                    );
-                                }
-                            }
-                        }).addTo(map);
-
-                        activeLayers[item.path] = geo;
-
-                        if(geo.getBounds().isValid()){
-                            map.fitBounds(geo.getBounds());
-                        }
-
-                    })
-                    .catch(err=>{
-                        console.error("Gagal load:", err);
-                    });
-
-                } else {
-
-                    if(activeLayers[item.path]){
-                        map.removeLayer(activeLayers[item.path]);
-                        delete activeLayers[item.path];
-                    }
-                }
-            };
+            let cb = createGeoJSONCheckbox(item.name, rawURL, indent);
+            container.appendChild(cb);
         }
     }
 }
 
+        
 // RUN
 loadFolder(apiURL, document.getElementById("folderList"));
 
