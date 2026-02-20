@@ -14,9 +14,9 @@
 body { margin:0; display:flex; font-family:Arial; }
 
 #sidebar{
-    width:320px;
-    background:#f4f4f4;
-    padding:10px;
+    width:340px;
+    background:#f7f7f7;
+    padding:15px;
     height:100vh;
     overflow:auto;
     border-right:1px solid #ccc;
@@ -27,8 +27,18 @@ body { margin:0; display:flex; font-family:Arial; }
     height:100vh;
 }
 
-.checkbox-item{
-    margin-top:5px;
+.layer-item{
+    margin-top:6px;
+    cursor:pointer;
+}
+
+.folder-label{
+    font-weight:bold;
+}
+
+.children{
+    margin-left:20px;
+    display:none;
 }
 </style>
 </head>
@@ -36,7 +46,7 @@ body { margin:0; display:flex; font-family:Arial; }
 <body>
 
 <div id="sidebar">
-    <h3>Layers from GitHub</h3>
+    <h3>📂 Layer Repository</h3>
     <div id="folderList"></div>
 </div>
 
@@ -44,9 +54,7 @@ body { margin:0; display:flex; font-family:Arial; }
 
 <script>
 
-// ======================================
-// 1️⃣ MAP SETUP
-// ======================================
+// ================= MAP =================
 var map = L.map("map").setView([-2.5,117.5],5);
 
 var osm = L.tileLayer(
@@ -64,16 +72,10 @@ L.control.layers({
     "Satellite": satellite
 }).addTo(map);
 
-// ======================================
-// 2️⃣ SEARCH CONTROL
-// ======================================
-L.Control.geocoder({
-    defaultMarkGeocode:true
-}).addTo(map);
+// ================= SEARCH =================
+L.Control.geocoder({defaultMarkGeocode:true}).addTo(map);
 
-// ======================================
-// 3️⃣ GITHUB CONFIG
-// ======================================
+// ================= GITHUB CONFIG =================
 const owner = "GeoSpatialNusantara";
 const repo = "WebGis";
 const branch = "main";
@@ -83,14 +85,11 @@ const apiURL = `https://api.github.com/repos/${owner}/${repo}/contents/${rootFol
 
 let activeLayers = {};
 
-// ======================================
-// 4️⃣ CREATE GEOJSON CHECKBOX
-// ======================================
-function createGeoJSONCheckbox(name, url, indent=0){
+// ================= CREATE FILE CHECKBOX =================
+function createFileItem(name, url){
 
-    let wrapper = document.createElement("div");
-    wrapper.className = "checkbox-item";
-    wrapper.style.marginLeft = (indent * 15) + "px";
+    let div = document.createElement("div");
+    div.className = "layer-item";
 
     let cb = document.createElement("input");
     cb.type = "checkbox";
@@ -132,70 +131,76 @@ function createGeoJSONCheckbox(name, url, indent=0){
         }
     };
 
-    wrapper.appendChild(cb);
-    wrapper.appendChild(document.createTextNode(" " + name));
-    return wrapper;
+    div.appendChild(cb);
+    div.appendChild(document.createTextNode(" " + name));
+    return div;
 }
 
-// ======================================
-// 5️⃣ LOAD FOLDER (RECURSIVE + FOLDER CHECKBOX)
-// ======================================
-async function loadFolders(path, container, indent=0){
+// ================= LOAD FOLDER RECURSIVE =================
+async function loadFolders(path, container){
 
     const response = await fetch(path);
     const items = await response.json();
 
     for(const item of items){
 
-        // =========================
-        // FOLDER WITH CHECKBOX
-        // =========================
+        // -------- FOLDER --------
         if(item.type === "dir"){
 
-            let wrapper = document.createElement("div");
-            wrapper.className = "checkbox-item";
-            wrapper.style.marginLeft = (indent * 15) + "px";
+            let folderDiv = document.createElement("div");
+            folderDiv.className = "layer-item folder-label";
 
             let folderCheckbox = document.createElement("input");
             folderCheckbox.type = "checkbox";
 
-            wrapper.appendChild(folderCheckbox);
-            wrapper.appendChild(document.createTextNode(" " + item.name));
-            container.appendChild(wrapper);
+            let toggle = document.createElement("span");
+            toggle.textContent = " ▶ ";
+            toggle.style.cursor = "pointer";
 
-            let subContainer = document.createElement("div");
-            container.appendChild(subContainer);
+            folderDiv.appendChild(folderCheckbox);
+            folderDiv.appendChild(toggle);
+            folderDiv.appendChild(document.createTextNode(item.name));
+            container.appendChild(folderDiv);
+
+            let childrenDiv = document.createElement("div");
+            childrenDiv.className = "children";
+            container.appendChild(childrenDiv);
+
+            // Expand collapse
+            toggle.onclick = function(){
+                if(childrenDiv.style.display === "none"){
+                    childrenDiv.style.display = "block";
+                    toggle.textContent = " ▼ ";
+                } else {
+                    childrenDiv.style.display = "none";
+                    toggle.textContent = " ▶ ";
+                }
+            };
 
             // ON/OFF semua child
             folderCheckbox.onchange = function(){
 
-                let childCheckboxes = subContainer.querySelectorAll("input[type=checkbox]");
+                let childChecks = childrenDiv.querySelectorAll("input[type=checkbox]");
 
-                childCheckboxes.forEach(cb=>{
+                childChecks.forEach(cb=>{
                     cb.checked = folderCheckbox.checked;
                     cb.dispatchEvent(new Event("change"));
                 });
             };
 
-            await loadFolders(item.url, subContainer, indent+1);
+            await loadFolders(item.url, childrenDiv);
         }
 
-        // =========================
-        // FILE GEOJSON
-        // =========================
+        // -------- FILE GEOJSON --------
         if(item.type === "file" && item.name.endsWith(".geojson")){
 
-            let rawURL = item.download_url;
-
-            let cb = createGeoJSONCheckbox(item.name, rawURL, indent);
-            container.appendChild(cb);
+            let fileItem = createFileItem(item.name, item.download_url);
+            container.appendChild(fileItem);
         }
     }
 }
 
-// ======================================
-// 6️⃣ RUN LOADER
-// ======================================
+// RUN
 loadFolders(apiURL, document.getElementById("folderList"));
 
 </script>
