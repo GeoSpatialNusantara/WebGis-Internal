@@ -70,17 +70,18 @@ border-radius:6px;border:1px solid #ccc;
 
 <!-- BASEMAP -->
 <div id="basemapTab" class="tab-content active">
+
 <div class="row">
-<div class="toggle active" id="osmToggle"></div>
+<div class="toggle active" id="googleToggle"></div>
+Google Satellite
+</div>
+
+<div class="row">
+<div class="toggle" id="osmToggle"></div>
 OpenStreetMap
 </div>
 
-<div class="row">
-<div class="toggle" id="esriToggle"></div>
-ESRI Satellite
 </div>
-</div>
-
 <!-- LAYER -->
 <div id="layerTab" class="tab-content">
 <input type="text" id="searchInput" placeholder="Cari layer...">
@@ -110,26 +111,37 @@ const markerImage="./img/point-of-interest.png";
 const map=L.map('map').setView([-2.5,118],5);
 
 /* ================= BASEMAP ================= */
-const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-const esri=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+// Google Satellite (default)
+const googleSat = L.tileLayer(
+'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+{
+maxZoom: 20
+}).addTo(map);
+
+// OpenStreetMap
+const osm = L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+);
 
 function activateBasemap(type){
+
+googleSat.remove();
 osm.remove();
-esri.remove();
+
 document.getElementById("osmToggle").classList.remove("active");
-document.getElementById("esriToggle").classList.remove("active");
+document.getElementById("googleToggle").classList.remove("active");
 
 if(type==="osm"){
 osm.addTo(map);
 osmToggle.classList.add("active");
 }else{
-esri.addTo(map);
-esriToggle.classList.add("active");
+googleSat.addTo(map);
+googleToggle.classList.add("active");
 }
 }
 
+googleToggle.onclick=()=>activateBasemap("google");
 osmToggle.onclick=()=>activateBasemap("osm");
-esriToggle.onclick=()=>activateBasemap("esri");
 
 /* ================= SIDEBAR ================= */
 toggleBtn.onclick=()=>sidebar.classList.toggle("active");
