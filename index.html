@@ -6,21 +6,21 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body{margin:0;font-family:Arial;}
+body{margin:0;font-family:Arial}
 #map{height:100vh;width:100%}
 
 /* Sidebar */
 #sidebar{
 position:absolute;right:0;top:0;
-width:360px;height:100%;
-background:#f5f5f5;
+width:370px;height:100%;
+background:#f4f4f4;
 box-shadow:-3px 0 10px rgba(0,0,0,.2);
 transform:translateX(100%);
-transition:.3s;
-z-index:1000;
+transition:.3s;z-index:1000;
 overflow:hidden;
 }
 #sidebar.active{transform:translateX(0)}
+
 #toggleBtn{
 position:absolute;top:15px;right:15px;
 z-index:1200;padding:8px 12px;
@@ -36,12 +36,12 @@ box-shadow:0 2px 6px rgba(0,0,0,.2);
 .tab-content{display:none;padding:15px;height:calc(100% - 45px);overflow:auto}
 .tab-content.active{display:block}
 
-/* Rows */
+/* Row */
 .row{display:flex;align-items:center;margin-top:8px}
 .arrow{margin-right:6px;cursor:pointer;transition:.3s}
 .arrow.rotate{transform:rotate(90deg)}
 .toggle{
-width:15px;height:15px;border-radius:50%;
+width:16px;height:16px;border-radius:50%;
 background:#bbb;margin-right:8px;cursor:pointer;
 transition:.2s;
 }
@@ -52,15 +52,6 @@ input{
 width:100%;padding:8px;margin-bottom:10px;
 border-radius:6px;border:1px solid #ccc;
 }
-
-#loading{
-position:absolute;top:50%;left:50%;
-transform:translate(-50%,-50%);
-background:white;padding:15px 25px;
-border-radius:8px;
-box-shadow:0 4px 10px rgba(0,0,0,.2);
-z-index:2000;
-}
 </style>
 </head>
 
@@ -68,7 +59,6 @@ z-index:2000;
 
 <div id="map"></div>
 <button id="toggleBtn">☰</button>
-<div id="loading">Loading data...</div>
 
 <div id="sidebar">
 
@@ -78,18 +68,30 @@ z-index:2000;
 <div class="tab" data-tab="uploadTab">Upload</div>
 </div>
 
+<!-- BASEMAP -->
 <div id="basemapTab" class="tab-content active">
-<div class="row" onclick="switchBasemap('osm')">OpenStreetMap</div>
-<div class="row" onclick="switchBasemap('esri')">ESRI Satellite</div>
+<div class="row">
+<div class="toggle active" id="osmToggle"></div>
+OpenStreetMap
 </div>
 
+<div class="row">
+<div class="toggle" id="esriToggle"></div>
+ESRI Satellite
+</div>
+</div>
+
+<!-- LAYER -->
 <div id="layerTab" class="tab-content">
 <input type="text" id="searchInput" placeholder="Cari layer...">
 <div id="layerList"></div>
 </div>
 
+<!-- UPLOAD -->
 <div id="uploadTab" class="tab-content">
 <input type="file" id="uploadInput" multiple accept=".zip,.kml,.kmz">
+<hr>
+<div id="uploadList"></div>
 </div>
 
 </div>
@@ -99,30 +101,39 @@ z-index:2000;
 <script src="https://unpkg.com/leaflet-omnivore@latest/leaflet-omnivore.min.js"></script>
 
 <script>
-// CONFIG
 const OWNER="GeoSpatialNusantara";
 const REPO="WebGis";
 const BRANCH="main";
-const ROOT_FOLDER="file";
+const ROOT="file";
 const markerImage="./img/point-of-interest.png";
 
 const map=L.map('map').setView([-2.5,118],5);
 
-// Basemap aman (tidak terhapus)
-const baseGroup=L.layerGroup().addTo(map);
-const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+/* ================= BASEMAP ================= */
+const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const esri=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-osm.addTo(baseGroup);
 
-function switchBasemap(type){
-baseGroup.clearLayers();
-(type==="osm"?osm:esri).addTo(baseGroup);
+function activateBasemap(type){
+osm.remove();
+esri.remove();
+document.getElementById("osmToggle").classList.remove("active");
+document.getElementById("esriToggle").classList.remove("active");
+
+if(type==="osm"){
+osm.addTo(map);
+osmToggle.classList.add("active");
+}else{
+esri.addTo(map);
+esriToggle.classList.add("active");
+}
 }
 
-// Sidebar
+osmToggle.onclick=()=>activateBasemap("osm");
+esriToggle.onclick=()=>activateBasemap("esri");
+
+/* ================= SIDEBAR ================= */
 toggleBtn.onclick=()=>sidebar.classList.toggle("active");
 
-// Tabs
 document.querySelectorAll(".tab").forEach(tab=>{
 tab.onclick=function(){
 document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -131,6 +142,8 @@ tab.classList.add("active");
 document.getElementById(tab.dataset.tab).classList.add("active");
 };
 });
+
+/* ================= LAYER GITHUB ================= */
 
 let layerStore={};
 
@@ -142,9 +155,9 @@ return await res.json();
 
 async function loadStructure(){
 const container=document.getElementById("layerList");
-const categories=await fetchGitHub(ROOT_FOLDER);
+const cats=await fetchGitHub(ROOT);
 
-for(const cat of categories){
+for(const cat of cats){
 if(cat.type!=="dir") continue;
 
 const row=document.createElement("div");
@@ -154,13 +167,10 @@ const arrow=document.createElement("span");
 arrow.className="arrow";
 arrow.innerHTML="▶";
 
-const toggle=document.createElement("div");
-toggle.className="toggle";
-
 const label=document.createElement("span");
 label.innerText=cat.name;
 
-row.append(arrow,toggle,label);
+row.append(arrow,label);
 container.appendChild(row);
 
 const yearContainer=document.createElement("div");
@@ -174,6 +184,7 @@ arrow.classList.toggle("rotate");
 };
 
 const years=await fetchGitHub(cat.path);
+
 for(const year of years){
 if(year.type!=="dir") continue;
 
@@ -182,7 +193,6 @@ yRow.className="row";
 
 const yToggle=document.createElement("div");
 yToggle.className="toggle";
-yToggle.dataset.path=year.path;
 
 const yLabel=document.createElement("span");
 yLabel.innerText=year.name;
@@ -191,56 +201,25 @@ yRow.append(yToggle,yLabel);
 yearContainer.appendChild(yRow);
 
 const files=await fetchGitHub(year.path);
+
 for(const file of files){
 if(!file.name.match(/\.(zip|kml|kmz)$/i)) continue;
-layerStore[file.path]={
-url:file.download_url,
-layer:null,
-marker:null
-};
+layerStore[file.path]={url:file.download_url,layer:null,marker:null};
 }
 
 yToggle.onclick=()=>toggleYear(year.path,yToggle);
 }
+}
+}
 
-// Bulk kategori (tidak mengunci tahun)
-toggle.onclick=async ()=>{
-const active=!toggle.classList.contains("active");
+async function toggleYear(path,toggle){
 toggle.classList.toggle("active");
-
-const yearToggles=yearContainer.querySelectorAll(".toggle");
-
-for(const yToggle of yearToggles){
-if(active && !yToggle.classList.contains("active")){
-yToggle.classList.add("active");
-await toggleYear(yToggle.dataset.path,yToggle,true);
-}
-if(!active && yToggle.classList.contains("active")){
-yToggle.classList.remove("active");
-await toggleYear(yToggle.dataset.path,yToggle,false);
-}
-}
-};
-}
-
-loading.style.display="none";
-}
-
-async function toggleYear(path,btn,force=null){
-
-let active;
-if(force!==null){
-active=force;
-}else{
-btn.classList.toggle("active");
-active=btn.classList.contains("active");
-}
+const active=toggle.classList.contains("active");
 
 for(let key in layerStore){
 if(key.startsWith(path)){
-if(active){
-await loadLayer(key);
-}else{
+if(active) await loadLayer(key);
+else{
 if(layerStore[key].layer){
 map.removeLayer(layerStore[key].layer);
 map.removeLayer(layerStore[key].marker);
@@ -251,7 +230,6 @@ map.removeLayer(layerStore[key].marker);
 }
 
 async function loadLayer(key){
-
 if(layerStore[key].layer){
 map.addLayer(layerStore[key].layer);
 map.addLayer(layerStore[key].marker);
@@ -264,8 +242,8 @@ let layer;
 if(layerStore[key].url.endsWith(".zip")){
 const res=await fetch(layerStore[key].url);
 const buffer=await res.arrayBuffer();
-const data=await shp(buffer);
-layer=L.geoJSON(data).addTo(map);
+const geo=await shp(buffer);
+layer=L.geoJSON(geo).addTo(map);
 }else{
 layer=omnivore.kml(layerStore[key].url).addTo(map);
 }
@@ -285,7 +263,54 @@ map.fitBounds(layer.getBounds());
 layerStore[key].layer=layer;
 }
 
+/* ================= UPLOAD ================= */
+
+uploadInput.addEventListener("change",async e=>{
+for(const file of e.target.files){
+
+const key="upload_"+Date.now()+file.name;
+
+let layer;
+
+if(file.name.endsWith(".zip")){
+const buffer=await file.arrayBuffer();
+const geo=await shp(buffer);
+layer=L.geoJSON(geo);
+}else{
+layer=omnivore.kml.parse(await file.text());
+}
+
+layerStore[key]={layer:layer,marker:null};
+
+const row=document.createElement("div");
+row.className="row";
+
+const toggle=document.createElement("div");
+toggle.className="toggle active";
+
+const label=document.createElement("span");
+label.innerText=file.name;
+
+row.append(toggle,label);
+uploadList.appendChild(row);
+
+toggle.onclick=()=>{
+toggle.classList.toggle("active");
+if(toggle.classList.contains("active")){
+layer.addTo(map);
+map.fitBounds(layer.getBounds());
+}else{
+map.removeLayer(layer);
+}
+};
+
+toggle.click();
+}
+});
+
+/* ================= START ================= */
 loadStructure();
 </script>
+
 </body>
 </html>
