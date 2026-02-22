@@ -9,6 +9,7 @@
 body{margin:0;font-family:Arial}
 #map{height:100vh;width:100%}
 
+/* ================= SIDEBAR ================= */
 #sidebar{
 position:fixed;
 top:0;
@@ -20,7 +21,7 @@ box-shadow:-3px 0 10px rgba(0,0,0,.2);
 transform:translateX(100%);
 transition:.3s;
 z-index:1000;
-overflow:auto;
+overflow:hidden;
 }
 #sidebar.active{transform:translateX(0)}
 
@@ -38,12 +39,14 @@ box-shadow:0 2px 6px rgba(0,0,0,.2);
 transition:right .3s ease;
 }
 
+/* ================= TABS ================= */
 .tabs{display:flex;background:#e0e0e0}
 .tab{flex:1;padding:10px;text-align:center;cursor:pointer;font-weight:bold}
 .tab.active{background:white;border-bottom:3px solid #2c7be5}
-.tab-content{display:none;padding:15px}
+.tab-content{display:none;padding:15px;height:calc(100% - 45px);overflow:auto}
 .tab-content.active{display:block}
 
+/* ================= ROW ================= */
 .row{display:flex;align-items:center;margin-top:8px}
 .arrow{margin-right:6px;cursor:pointer;transition:.3s}
 .arrow.rotate{transform:rotate(90deg)}
@@ -70,6 +73,7 @@ border-radius:6px;border:1px solid #ccc;
 <button id="toggleBtn">☰</button>
 
 <div id="sidebar">
+
 <div class="tabs">
 <div class="tab active" data-tab="layerTab">Layer</div>
 <div class="tab" data-tab="uploadTab">Upload</div>
@@ -84,6 +88,7 @@ border-radius:6px;border:1px solid #ccc;
 <hr>
 <div id="uploadList"></div>
 </div>
+
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -100,86 +105,25 @@ const markerImage="./img/point-of-interest.png";
 const map=L.map('map').setView([-2.5,118],5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+toggleBtn.onclick=()=>{
+sidebar.classList.toggle("active");
+if(sidebar.classList.contains("active")){
+toggleBtn.style.right="385px";
+}else{
+toggleBtn.style.right="15px";
+}
+};
+
+document.querySelectorAll(".tab").forEach(tab=>{
+tab.onclick=function(){
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+tab.classList.add("active");
+document.getElementById(tab.dataset.tab).classList.add("active");
+};
+});
+
 let layerStore={};
-let colorStore={};
-
-function getCategoryFromPath(path){
-return path.split("/")[1];
-}
-
-function getCategoryColor(category){
-if(!colorStore[category]){
-const hue=Math.floor(Math.random()*360);
-colorStore[category]=`hsl(${hue},70%,50%)`;
-}
-return colorStore[category];
-}
-
-function buildPopupContent(properties,downloadUrl){
-let html="<div style='font-size:13px'>";
-if(properties){
-for(let key in properties){
-if(properties[key]!==null && properties[key]!==""){
-html+=`<b>${key}</b>: ${properties[key]}<br>`;
-}
-}
-}
-if(downloadUrl){
-html+=`<hr>
-<a href="${downloadUrl}" target="_blank"
-style="display:inline-block;padding:5px 8px;
-background:#2c7be5;color:white;
-text-decoration:none;border-radius:4px">
-Download File</a>`;
-}
-html+="</div>";
-return html;
-}
-
-function createCenterMarker(key,layer){
-
-if(!layer.getBounds().isValid()) return;
-
-const center=layer.getBounds().getCenter();
-const size=map.getZoom()*2;
-
-const icon=L.icon({
-iconUrl:markerImage,
-iconSize:[size,size],
-iconAnchor:[size/2,size]
-});
-
-if(layerStore[key].marker){
-map.removeLayer(layerStore[key].marker);
-}
-
-const marker=L.marker(center,{icon}).addTo(map);
-
-marker.bindPopup(`
-<b>${key.split("/").pop()}</b><br><br>
-<a href="${layerStore[key].url}" target="_blank"
-style="display:inline-block;padding:5px 8px;
-background:#28a745;color:white;
-text-decoration:none;border-radius:4px">
-Download File</a>
-`);
-
-layerStore[key].marker=marker;
-}
-
-map.on("zoomend",()=>{
-const size=map.getZoom()*2;
-for(let key in layerStore){
-if(layerStore[key].marker){
-const icon=L.icon({
-iconUrl:markerImage,
-iconSize:[size,size],
-iconAnchor:[size/2,size]
-});
-layerStore[key].marker.setIcon(icon);
-}
-}
-});
 
 async function fetchGitHub(path){
 const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
@@ -187,8 +131,98 @@ const res=await fetch(url);
 return await res.json();
 }
 
-async function loadLayer(key){
+async function loadStructure(){
+const container=document.getElementById("layerList");
+const cats=await fetchGitHub(ROOT);
 
+for(const cat of cats){
+if(cat.type!=="dir") continue;
+
+const row=document.createElement("div");
+row.className="row";
+
+const arrow=document.createElement("span");
+arrow.className="arrow";
+arrow.innerHTML="▶";
+
+const catToggle=document.createElement("div");
+catToggle.className="toggle";
+
+const label=document.createElement("span");
+label.innerText=cat.name;
+
+row.append(arrow,catToggle,label);
+container.appendChild(row);
+
+const yearContainer=document.createElement("div");
+yearContainer.className="year-container";
+container.appendChild(yearContainer);
+
+arrow.onclick=()=>{
+yearContainer.style.display=
+yearContainer.style.display==="block"?"none":"block";
+arrow.classList.toggle("rotate");
+};
+
+let yearToggles=[];
+
+catToggle.onclick=async(e)=>{
+e.stopPropagation();
+catToggle.classList.toggle("active");
+const active=catToggle.classList.contains("active");
+
+for(const y of yearToggles){
+if(active && !y.classList.contains("active")) await y.click();
+if(!active && y.classList.contains("active")) await y.click();
+}
+};
+
+const years=await fetchGitHub(cat.path);
+
+for(const year of years){
+if(year.type!=="dir") continue;
+
+const yRow=document.createElement("div");
+yRow.className="row";
+
+const yToggle=document.createElement("div");
+yToggle.className="toggle";
+
+const yLabel=document.createElement("span");
+yLabel.innerText=year.name;
+
+yRow.append(yToggle,yLabel);
+yearContainer.appendChild(yRow);
+
+yearToggles.push(yToggle);
+
+const files=await fetchGitHub(year.path);
+for(const file of files){
+if(!file.name.match(/\.(zip|kml|kmz)$/i)) continue;
+layerStore[file.path]={url:file.download_url,layer:null,marker:null};
+}
+
+yToggle.onclick=()=>toggleYear(year.path,yToggle);
+}
+}
+}
+
+async function toggleYear(path,toggle){
+toggle.classList.toggle("active");
+const active=toggle.classList.contains("active");
+
+for(let key in layerStore){
+if(key.startsWith(path)){
+if(active) await loadLayer(key);
+else{
+if(layerStore[key].layer) map.removeLayer(layerStore[key].layer);
+if(layerStore[key].marker) map.removeLayer(layerStore[key].marker);
+}
+}
+}
+}
+
+async function loadLayer(key){
 if(layerStore[key].layer){
 map.addLayer(layerStore[key].layer);
 if(layerStore[key].marker) map.addLayer(layerStore[key].marker);
@@ -199,38 +233,81 @@ return;
 let layer;
 
 if(layerStore[key].url.endsWith(".zip")){
-
 const res=await fetch(layerStore[key].url);
 const buffer=await res.arrayBuffer();
-const geoData=await shp(buffer);
-
-const category=getCategoryFromPath(key);
-const color=getCategoryColor(category);
-
-layer=L.geoJSON(geoData,{
-style:{color:color,weight:2,fillOpacity:0.3},
-onEachFeature:function(feature,layerFeature){
-layerFeature.bindPopup(
-buildPopupContent(feature.properties,layerStore[key].url)
-);
-}
-}).addTo(map);
-
+const geo=await shp(buffer);
+layer=L.geoJSON(geo).addTo(map);
 }else{
-
-layer=omnivore.kml(layerStore[key].url)
-.on("ready",function(){
-createCenterMarker(key,layer);
-map.fitBounds(layer.getBounds());
-})
-.addTo(map);
+layer=omnivore.kml(layerStore[key].url).addTo(map);
 }
+
+layer.on("ready",()=>{
+const bounds=layer.getBounds();
+const center=bounds.getCenter();
+
+const icon=L.icon({
+iconUrl:markerImage,
+iconSize:[30,30],
+iconAnchor:[15,30]
+});
+
+if(layerStore[key].marker){
+map.removeLayer(layerStore[key].marker);
+}
+
+const marker=L.marker(center,{icon}).addTo(map);
+
+layerStore[key].marker=marker;
+map.fitBounds(bounds);
+});
 
 layerStore[key].layer=layer;
-createCenterMarker(key,layer);
-map.fitBounds(layer.getBounds());
 }
 
+/* ================= UPLOAD ================= */
+uploadInput.addEventListener("change",async e=>{
+for(const file of e.target.files){
+
+let layer;
+if(file.name.endsWith(".zip")){
+const buffer=await file.arrayBuffer();
+const geo=await shp(buffer);
+layer=L.geoJSON(geo);
+}else{
+layer=omnivore.kml.parse(await file.text());
+}
+
+const key="upload_"+Date.now()+file.name;
+layerStore[key]={layer:layer,marker:null};
+
+const row=document.createElement("div");
+row.className="row";
+
+const toggle=document.createElement("div");
+toggle.className="toggle active";
+
+const label=document.createElement("span");
+label.innerText=file.name;
+
+row.append(toggle,label);
+uploadList.appendChild(row);
+
+toggle.onclick=()=>{
+toggle.classList.toggle("active");
+if(toggle.classList.contains("active")){
+layer.addTo(map);
+map.fitBounds(layer.getBounds());
+}else{
+map.removeLayer(layer);
+}
+};
+
+toggle.click();
+}
+});
+
+loadStructure();
 </script>
+
 </body>
 </html>
