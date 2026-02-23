@@ -75,6 +75,20 @@ border-radius:6px;border:1px solid #ccc;
 .leaflet-control-layers input {
     margin: 0;
 }
+
+#searchResult div{
+padding:6px;
+background:white;
+margin-bottom:4px;
+border-radius:6px;
+cursor:pointer;
+border:1px solid #ddd;
+}
+
+#searchResult div:hover{
+background:#2c7be5;
+color:white;
+}
     
 </style>
 </head>
@@ -92,7 +106,12 @@ border-radius:6px;border:1px solid #ccc;
 </div>
 
 <div id="layerTab" class="tab-content active">
+
+<input type="text" id="searchInput" placeholder="Cari file... (contoh: 2023, jalan, sulawesi)">
+<div id="searchResult" style="margin-bottom:15px;"></div>
+
 <div id="layerList"></div>
+
 </div>
 
 <div id="uploadTab" class="tab-content">
@@ -171,6 +190,48 @@ document.getElementById(tab.dataset.tab).classList.add("active");
 
 let layerStore={};
 
+const searchInput = document.getElementById("searchInput");
+const searchResult = document.getElementById("searchResult");
+
+searchInput.addEventListener("input", function(){
+
+    const keyword = this.value.toLowerCase();
+    searchResult.innerHTML="";
+
+    if(keyword.length < 2){
+        searchResult.innerHTML="";
+        return;
+    }
+
+    for(let key in layerStore){
+
+        const fileName = key.split("/").pop().toLowerCase();
+
+        if(fileName.includes(keyword)){
+
+            const item = document.createElement("div");
+            item.innerText = key.split("/").pop();
+
+            item.onclick = async function(){
+
+                await loadLayer(key);
+
+                // aktifkan toggle tahun otomatis
+                document.querySelectorAll(".toggle").forEach(t=>{
+                    if(!t.classList.contains("active")){
+                        t.click();
+                    }
+                });
+
+                searchResult.innerHTML="";
+                searchInput.value="";
+            };
+
+            searchResult.appendChild(item);
+        }
+    }
+});
+    
 async function fetchGitHub(path){
 const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
 const res=await fetch(url);
@@ -364,7 +425,11 @@ if(layerStore[key].url.endsWith(".zip")){
 const res=await fetch(layerStore[key].url);
 const buffer=await res.arrayBuffer();
 const geo=await shp(buffer);
-layer=L.geoJSON(geo).addTo(map);
+layer = L.geoJSON(geo, {
+    pointToLayer: function () {
+        return null; // jangan tampilkan marker asli
+    }
+}).addTo(map);
 
 }else if(layerStore[key].url.endsWith(".kmz")){
 const res=await fetch(layerStore[key].url);
@@ -381,12 +446,30 @@ kmlFile=zipEntry;
 
 if(kmlFile){
 const kmlText=await kmlFile.async("text");
-layer=omnivore.kml.parse(kmlText).addTo(map);
+layer = omnivore.kml.parse(kmlText);
+layer.on("ready", function(){
+    layer.eachLayer(function(l){
+        if(l instanceof L.Marker){
+            layer.removeLayer(l);
+        }
+    });
+});
+layer.addTo(map);
 }
 
 }else{
-layer=omnivore.kml(layerStore[key].url).addTo(map);
+layer = omnivore.kml(layerStore[key].url);
+layer.on("ready", function(){
+    layer.eachLayer(function(l){
+        if(l instanceof L.Marker){
+            layer.removeLayer(l);
+        }
+    });
+});
+layer.addTo(map);
+    
 }
+    
 layerStore[key].layer=layer;
 
 if(layer instanceof L.GeoJSON){
