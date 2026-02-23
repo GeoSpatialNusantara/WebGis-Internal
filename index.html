@@ -301,10 +301,48 @@ function addCenterMarker(layer,key){
     `;
 
     marker.bindPopup(popupContent,{
-    closeButton: true,
-    autoClose: true,
-    closeOnClick: true,
+    closeButton: false,
+    autoClose: false,
+    closeOnClick: false,
     offset:[0,-25]
+});
+let popupHovered = false;
+let markerHovered = false;
+
+marker.on("mouseover", function () {
+    markerHovered = true;
+    this.openPopup();
+});
+
+marker.on("mouseout", function () {
+    markerHovered = false;
+    setTimeout(() => {
+        if (!popupHovered && !markerHovered) {
+            marker.closePopup();
+        }
+    }, 200);
+});
+
+marker.on("popupopen", function () {
+    const popupEl = marker.getPopup().getElement();
+
+    if (!popupEl._hoverBound) {
+
+        popupEl.addEventListener("mouseenter", function () {
+            popupHovered = true;
+        });
+
+        popupEl.addEventListener("mouseleave", function () {
+            popupHovered = false;
+            setTimeout(() => {
+                if (!popupHovered && !markerHovered) {
+                    marker.closePopup();
+                }
+            }, 200);
+        });
+
+        popupEl._hoverBound = true;
+    }
 });
 
     layerStore[key].marker = marker;
