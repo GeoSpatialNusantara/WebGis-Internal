@@ -432,87 +432,77 @@ marker.on("popupopen", function () {
 
 }
   
-function addCenterMarker(layer, key) {
-    let center;
-    if (layer.getBounds) {
-        const bounds = layer.getBounds();
-        if (bounds && bounds.isValid()) {
-            center = bounds.getCenter();
+async function loadLayer(key){
+if(layerStore[key].layer){
+map.addLayer(layerStore[key].layer);
+if(layerStore[key].marker) map.addLayer(layerStore[key].marker);
+
+return;
+}
+
+let layer;
+
+if(layerStore[key].url.endsWith(".zip")){
+const res=await fetch(layerStore[key].url);
+const buffer=await res.arrayBuffer();
+const geo=await shp(buffer);
+layer = L.geoJSON(geo, {
+    pointToLayer: function () {
+        return null; // jangan tampilkan marker asli
+    }
+}).addTo(map);
+
+}else if(layerStore[key].url.endsWith(".kmz")){
+const res=await fetch(layerStore[key].url);
+const buffer=await res.arrayBuffer();
+
+const zip=await JSZip.loadAsync(buffer);
+let kmlFile;
+
+zip.forEach((relativePath, zipEntry)=>{
+if(relativePath.endsWith(".kml")){
+kmlFile=zipEntry;
+}
+});
+
+if(kmlFile){
+const kmlText=await kmlFile.async("text");
+layer = omnivore.kml.parse(kmlText);
+layer.on("ready", function(){
+    layer.eachLayer(function(l){
+        if(l instanceof L.Marker){
+            layer.removeLayer(l);
         }
-    }
-    // fallback jika bounds tidak valid (misal layer kosong)
-    if (!center) center = map.getCenter();
-
-    const icon = L.icon({
-        iconUrl: markerImage,
-        iconSize: [30, 30],
-        iconAnchor: [15, 30]
     });
+});
+layer.addTo(map);
+}
 
-    // hapus marker lama jika ada
-    if (layerStore[key].marker) map.removeLayer(layerStore[key].marker);
-
-    const fileName = key.split("/").pop();
-    const fileUrl = layerStore[key].url;
-
-    const marker = L.marker(center, { icon }).addTo(map);
-
-    marker.bindPopup(`
-        <div style="text-align:center;">
-            <b>${fileName}</b><br>
-            <a href="${fileUrl}" download style="color:#2c7be5;text-decoration:none;font-weight:bold;">
-                Download
-            </a>
-        </div>
-    `, {
-        closeButton: false,
-        autoClose: false,
-        closeOnClick: false,
-        offset: [0, -25]
+}else{
+layer = omnivore.kml(layerStore[key].url);
+layer.on("ready", function(){
+    layer.eachLayer(function(l){
+        if(l instanceof L.Marker){
+            layer.removeLayer(l);
+        }
     });
+});
+layer.addTo(map);
+    
+}
+    
+layerStore[key].layer=layer;
 
-    layerStore[key].marker = marker;
+if(layer instanceof L.GeoJSON){
+addCenterMarker(layer,key);
+}else{
+layer.on("ready",()=>{
+addCenterMarker(layer,key);
+});
 }
 
-// ---------------- loadLayer ----------------
-async function loadLayer(key) {
-    if (layerStore[key].layer) {
-        map.addLayer(layerStore[key].layer);
-        if (layerStore[key].marker) map.addLayer(layerStore[key].marker);
-        return;
-    }
-
-    let layer;
-
-    if (key.endsWith(".zip")) {
-        const res = await fetch(layerStore[key].url);
-        const buffer = await res.arrayBuffer();
-        const geo = await shp(buffer);
-        layer = L.geoJSON(geo, { pointToLayer: () => null }).addTo(map);
-        addCenterMarker(layer, key);
-    } else {
-        // KML/KMZ
-        layer = key.endsWith(".kmz") ? await loadKMZ(layerStore[key].url) : omnivore.kml(layerStore[key].url);
-        layer.on("ready", () => addCenterMarker(layer, key));
-        layer.addTo(map);
-    }
-
-    layerStore[key].layer = layer;
 }
-
-// helper untuk KMZ
-async function loadKMZ(url) {
-    const res = await fetch(url);
-    const buffer = await res.arrayBuffer();
-    const zip = await JSZip.loadAsync(buffer);
-    let kmlFile;
-    zip.forEach((path, entry) => { if (path.endsWith(".kml")) kmlFile = entry });
-    if (!kmlFile) return L.layerGroup();
-    const kmlText = await kmlFile.async("text");
-    const layer = omnivore.kml.parse(kmlText);
-    layer.on("ready", () => layer.eachLayer(l => { if (l instanceof L.Marker) layer.removeLayer(l) }));
-    return layer;
-}
+  
 /* ================= UPLOAD ================= */
 uploadInput.addEventListener("change",async e=>{
 for(const file of e.target.files){
