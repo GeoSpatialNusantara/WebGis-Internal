@@ -480,22 +480,21 @@ layer.addTo(map);
 
 }else{
 
-layer = omnivore.kml(layerStore[key].url, null, L.geoJSON(null, {
-
-    // 🔥 override point agar tidak jadi marker
-    pointToLayer: function(){
-        return null;
-    }
-
-}));
+layer = omnivore.kml(layerStore[key].url);
 
 layer.on("ready", function(){
 
-    const fileName = key.split("/").pop();
     const fileUrl = layerStore[key].url;
 
     layer.eachLayer(function(l){
 
+        // 🔥 HAPUS marker bawaan KML
+        if(l instanceof L.Marker){
+            layer.removeLayer(l);
+            return;
+        }
+
+        // Popup untuk polygon/line
         if(l.feature && l.feature.properties){
 
             let props = l.feature.properties;
@@ -521,7 +520,9 @@ layer.on("ready", function(){
 
     });
 
+    // 🔥 Tambah marker center setelah marker lama dihapus
     addCenterMarker(layer,key);
+
 });
 
 layer.addTo(map);
