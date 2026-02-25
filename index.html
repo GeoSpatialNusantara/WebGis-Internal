@@ -527,24 +527,49 @@ else{
 
     layer = omnivore.kml(layerStore[key].url);
 
-    layer.on("ready",function(){
+    layer.on("ready", async function(){
 
-        layer.eachLayer(function(l){
+    // ====== Ambil nama file tanpa ekstensi ======
+    const fileName = layerStore[key].url.split("/").pop().replace(".kmz","");
 
-            if(l instanceof L.Marker){
-                layer.removeLayer(l);
-                return;
-            }
+    // ====== Buat URL txt ======
+    const txtUrl = layerStore[key].url.replace(".kmz",".txt");
 
-        });
+    let txtContent = "";
+
+    try{
+        const resTxt = await fetch(txtUrl);
+        txtContent = await resTxt.text();
+    }catch(e){
+        txtContent = "Atribut tidak ditemukan";
+    }
+
+    layer.eachLayer(function(l){
+
+        if(l instanceof L.Marker){
+            layer.removeLayer(l);
+            return;
+        }
+
+        let html = `
+        <div style="font-size:13px">
+        <b>${fileName}</b><hr>
+        ${txtContent}
+        <hr>
+        <a href="${layerStore[key].url}" target="_blank"
+        style="display:inline-block;padding:6px 10px;
+        background:#2c7be5;color:white;
+        text-decoration:none;border-radius:4px">
+        Download File
+        </a>
+        </div>
+        `;
+
+        l.bindPopup(html);
 
     });
 
-    layer.addTo(map);
-}
-
-layerStore[key].layer=layer;
-}
+});
   
 /* ================= UPLOAD ================= */
 uploadInput.addEventListener("change",async e=>{
