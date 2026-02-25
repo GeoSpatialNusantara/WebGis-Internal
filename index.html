@@ -335,7 +335,7 @@ if(key.startsWith(path)){
 if(active) await loadLayer(key);
 else{
 if(layerStore[key].layer) map.removeLayer(layerStore[key].layer);
-if(layerStore[key].marker) map.removeLayer(layerStore[key].marker);
+
 }
 }
 }
@@ -433,112 +433,98 @@ marker.on("popupopen", function () {
 }
   
 async function loadLayer(key){
+
 if(layerStore[key].layer){
 map.addLayer(layerStore[key].layer);
-if(layerStore[key].marker) map.addLayer(layerStore[key].marker);
-
 return;
 }
 
 let layer;
 
 if(layerStore[key].url.endsWith(".zip")){
+
 const res=await fetch(layerStore[key].url);
 const buffer=await res.arrayBuffer();
 const geo=await shp(buffer);
-layer = L.geoJSON(geo, {
-    pointToLayer: function () {
-        return null; // jangan tampilkan marker asli
-    }
+
+layer = L.geoJSON(geo,{
+
+onEachFeature:function(feature,layerItem){
+
+let html="<div style='font-size:13px'>";
+
+for(let p in feature.properties){
+if(feature.properties[p]){
+html+=`<b>${p}</b>: ${feature.properties[p]}<br>`;
+}
+}
+
+html+=`<hr>
+<a href="${layerStore[key].url}" target="_blank"
+style="display:inline-block;padding:5px 8px;
+background:#2c7be5;color:white;
+text-decoration:none;border-radius:4px">
+Download File</a>`;
+
+html+="</div>";
+
+layerItem.bindPopup(html);
+
+}
+
 }).addTo(map);
 
-}else if(layerStore[key].url.endsWith(".kmz")){
-const res=await fetch(layerStore[key].url);
-const buffer=await res.arrayBuffer();
-
-const zip=await JSZip.loadAsync(buffer);
-let kmlFile;
-
-zip.forEach((relativePath, zipEntry)=>{
-if(relativePath.endsWith(".kml")){
-kmlFile=zipEntry;
-}
-});
-
-if(kmlFile){
-const kmlText=await kmlFile.async("text");
-layer = omnivore.kml.parse(kmlText);
-layer.on("ready", function(){
-    layer.eachLayer(function(l){
-        if(l instanceof L.Marker){
-            layer.removeLayer(l);
-        }
-    });
-});
-layer.addTo(map);
 }
 
-}else{
+/* ================= KML / KMZ ================= */
+
+else{
 
 layer = omnivore.kml(layerStore[key].url);
 
-layer.on("ready", function(){
+layer.on("ready",function(){
 
-    const fileUrl = layerStore[key].url;
+layer.eachLayer(function(l){
 
-    layer.eachLayer(function(l){
+if(l instanceof L.Marker){
+layer.removeLayer(l); // hapus marker
+return;
+}
 
-        // 🔥 HAPUS marker bawaan KML
-        if(l instanceof L.Marker){
-            layer.removeLayer(l);
-            return;
-        }
+if(l.feature && l.feature.properties){
 
-        // Popup untuk polygon/line
-        if(l.feature && l.feature.properties){
+let props=l.feature.properties;
 
-            let props = l.feature.properties;
-            let html = "<div style='font-size:13px'>";
+let html="<div style='font-size:13px'>";
 
-            for(let p in props){
-                if(props[p]){
-                    html += `<b>${p}</b>: ${props[p]}<br>`;
-                }
-            }
+for(let p in props){
+if(props[p]){
+html+=`<b>${p}</b>: ${props[p]}<br>`;
+}
+}
 
-            html += `<hr>
-            <a href="${fileUrl}" target="_blank"
-            style="display:inline-block;padding:5px 8px;
-            background:#2c7be5;color:white;
-            text-decoration:none;border-radius:4px">
-            Download File</a>`;
+html+=`<hr>
+<a href="${layerStore[key].url}" target="_blank"
+style="display:inline-block;padding:5px 8px;
+background:#2c7be5;color:white;
+text-decoration:none;border-radius:4px">
+Download File</a>`;
 
-            html += "</div>";
+html+="</div>";
 
-            l.bindPopup(html);
-        }
+l.bindPopup(html);
 
-    });
+}
 
-    // 🔥 Tambah marker center setelah marker lama dihapus
-    addCenterMarker(layer,key);
+});
 
 });
 
 layer.addTo(map);
 
 }
-    
+
 layerStore[key].layer=layer;
-
-if(layer instanceof L.GeoJSON){
-addCenterMarker(layer,key);
-}else{
-layer.on("ready",()=>{
-addCenterMarker(layer,key);
-});
-}
-
 }
   
 /* ================= UPLOAD ================= */
