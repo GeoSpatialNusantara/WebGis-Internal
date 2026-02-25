@@ -431,7 +431,23 @@ marker.on("popupopen", function () {
     layerStore[key].marker = marker;
 
 }
-  
+
+async function fetchTXT(key){
+
+const txtPath = key.replace(/\.(zip|kml|kmz)$/i, ".txt");
+
+const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
+
+try{
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    const text = await res.text();
+    return JSON.parse(text);
+}catch(e){
+    return null;
+}
+}
+    
 async function loadLayer(key){
 
 if(layerStore[key].layer){
@@ -453,23 +469,30 @@ onEachFeature:function(feature,layerItem){
 
 let html="<div style='font-size:13px'>";
 
-for(let p in feature.properties){
-if(feature.properties[p]){
-html+=`<b>${p}</b>: ${feature.properties[p]}<br>`;
-}
-}
+if(txtData){
 
-html+=`<hr>
-<a href="${layerStore[key].url}" target="_blank"
-style="display:inline-block;padding:5px 8px;
-background:#2c7be5;color:white;
-text-decoration:none;border-radius:4px">
-Download File</a>`;
+    if(Array.isArray(txtData)){
+        // jika banyak fitur → cocokkan pakai index
+        const data = txtData[feature.properties.id - 1] || txtData[0];
+
+        for(let p in data){
+            html+=`<b>${p}</b>: ${data[p]}<br>`;
+        }
+
+    }else{
+        // jika hanya satu object
+        for(let p in txtData){
+            html+=`<b>${p}</b>: ${txtData[p]}<br>`;
+        }
+    }
+
+}else{
+    html+="Tidak ada atribut tambahan";
+}
 
 html+="</div>";
 
 layerItem.bindPopup(html);
-
 }
 
 }).addTo(map);
@@ -478,50 +501,46 @@ layerItem.bindPopup(html);
 
 /* ================= KML / KMZ ================= */
 
+else if(layerStore[key].url.endsWith(".kmz")){
+
+    const res = await fetch(layerStore[key].url);
+    const buffer = await res.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+
+    let kmlFile;
+
+    zip.forEach((relativePath, zipEntry)=>{
+        if(relativePath.endsWith(".kml")){
+            kmlFile = zipEntry;
+        }
+    });
+
+    if(kmlFile){
+        const kmlText = await kmlFile.async("text");
+        layer = omnivore.kml.parse(kmlText);
+        layer.addTo(map);
+    }
+
+}
+
 else{
 
-layer = omnivore.kml(layerStore[key].url);
+    layer = omnivore.kml(layerStore[key].url);
 
-layer.on("ready",function(){
+    layer.on("ready",function(){
 
-layer.eachLayer(function(l){
+        layer.eachLayer(function(l){
 
-if(l instanceof L.Marker){
-layer.removeLayer(l); // hapus marker
-return;
-}
+            if(l instanceof L.Marker){
+                layer.removeLayer(l);
+                return;
+            }
 
-if(l.feature && l.feature.properties){
+        });
 
-let props=l.feature.properties;
+    });
 
-let html="<div style='font-size:13px'>";
-
-for(let p in props){
-if(props[p]){
-html+=`<b>${p}</b>: ${props[p]}<br>`;
-}
-}
-
-html+=`<hr>
-<a href="${layerStore[key].url}" target="_blank"
-style="display:inline-block;padding:5px 8px;
-background:#2c7be5;color:white;
-text-decoration:none;border-radius:4px">
-Download File</a>`;
-
-html+="</div>";
-
-l.bindPopup(html);
-
-}
-
-});
-
-});
-
-layer.addTo(map);
-
+    layer.addTo(map);
 }
 
 layerStore[key].layer=layer;
