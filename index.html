@@ -543,7 +543,8 @@ if(layerStore[key].url.endsWith(".zip")){
     });
 }
  // end onEachFeature
-    }).addTo(map);
+    })
+        layer.addTo(map);
 
 // ================= KMZ =================
 else if(layerStore[key].url.endsWith(".kmz")){
