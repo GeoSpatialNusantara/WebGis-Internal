@@ -542,7 +542,8 @@ if(layerStore[key].url.endsWith(".zip")){
         }
     });
 }
-
+        } // end onEachFeature
+    }).addTo(map);
 
 // ================= KMZ =================
 else if(layerStore[key].url.endsWith(".kmz")){
@@ -575,40 +576,65 @@ else if(layerStore[key].url.endsWith(".kmz")){
 
                 let html="<div style='font-size:13px'>";
 
-                if(txtData){
-                    html += txtData.replace(/\n/g,"<br>");
-                    }
-                }else{
-                    html+="Tidak ada atribut tambahan";
-                }
-
-                html+=`<hr>
-                <a href="${layerStore[key].url}" target="_blank"
-                style="background:#2c7be5;color:white;padding:6px 10px;
-                text-decoration:none;border-radius:4px">
-                Download
-                </a></div>`;
+               if(txtData){
+    html += txtData.replace(/\n/g,"<br>");
+}else{
+    html += "Tidak ada atribut tambahan";
+}
+                html += `<hr>
+<button onclick="downloadAll('${key}')"
+style="background:#2c7be5;color:white;padding:6px 10px;
+border:none;border-radius:4px;cursor:pointer">
+Download
+</button></div>`;
 
                 l.bindPopup(html,{
     closeButton:false,
     autoClose:false,
     closeOnClick:false
-});
-
-let isHover = false;
+});let isHover=false;
+let popupHover=false;
 
 l.on("mouseover", function(e){
-    isHover = true;
+    isHover=true;
     this.openPopup(e.latlng);
 });
 
 l.on("mouseout", function(){
-    isHover = false;
+    isHover=false;
     setTimeout(()=>{
-        if(!isHover){
+        if(!isHover && !popupHover){
             l.closePopup();
         }
-    },150);
+    },200);
+});
+
+l.on("popupopen", function(){
+    const el = l.getPopup().getElement();
+
+    if(!el._binded){
+        el.addEventListener("mouseenter", ()=> popupHover=true);
+        el.addEventListener("mouseleave", ()=>{
+            popupHover=false;
+            setTimeout(()=>{
+                if(!isHover && !popupHover){
+                    l.closePopup();
+                }
+            },200);
+        });
+        el._binded=true;
+    }
+});
+
+l.on("click", function(){
+    const bounds = layer.getBounds();
+    if(bounds && bounds.isValid()){
+        map.flyToBounds(bounds,{
+            padding:[50,50],
+            maxZoom:16,
+            duration:1.2
+        });
+    }
 });
 
             });
@@ -702,26 +728,7 @@ else{
 
 });
 
-let isHover = false;
-
-l.on("mouseover", function(e){
-    isHover = true;
-    this.openPopup(e.latlng);
-});
-
-l.on("mouseout", function(){
-    isHover = false;
-    setTimeout(()=>{
-        if(!isHover){
-            l.closePopup();
-        }
-    },150);
-});
-
         });
-
-    });
-
     layer.addTo(map);
 }
 
