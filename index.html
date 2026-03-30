@@ -449,7 +449,7 @@ async function fetchTXT(key){
     
 async function loadLayer(key){
 
-if(layerStore[key].layer){
+if(layerStore[key].layer){f
     map.addLayer(layerStore[key].layer);
     return;
 }
@@ -542,8 +542,6 @@ if(layerStore[key].url.endsWith(".zip")){
         }
     });
 
-        layer.addTo(map);
-    }
 // ================= KMZ =================
 else if (layerStore[key].url.endsWith(".kmz")){
 
