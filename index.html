@@ -8,7 +8,13 @@
 <style>
 body{margin:0;font-family:Arial}
 #map{height:100vh;width:100%}
-
+    
+.leaflet-popup-content table {
+    font-size:12px;
+}
+.leaflet-popup-content td {
+    word-break: break-word;
+}
 /* ================= SIDEBAR ================= */
 #sidebar{
 position:fixed;
@@ -446,13 +452,6 @@ async function loadLayer(key){
     console.log("LOAD:", key, layerStore[key].url);
     if(layerStore[key].layer){
         map.addLayer(layerStore[key].layer);
-
-        // zoom otomatis saat klik/search
-        const bounds = layerStore[key].layer.getBounds();
-        if(bounds && bounds.isValid()){
-            map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
-        }
-
         return;
     }
 
@@ -479,11 +478,6 @@ async function loadLayer(key){
         },
         onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
     }).addTo(map);
-
-    const bounds = layer.getBounds();
-    if(bounds && bounds.isValid()){
-        map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
-    }
 }
 
     // ================= KMZ =================
@@ -516,11 +510,6 @@ async function loadLayer(key){
             });
 
             layer.addTo(map);
-
-            const bounds = layer.getBounds();
-            if(bounds && bounds.isValid()){
-                map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
-            }
         });
     }
 
@@ -536,11 +525,6 @@ async function loadLayer(key){
             });
 
             layer.addTo(map);
-
-            const bounds = layer.getBounds();
-            if(bounds && bounds.isValid()){
-                map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
-            }
         });
     }
 
@@ -606,15 +590,27 @@ toggle.click();
     
 function attachInteraction(layerItem, key, txtData, layer){
 
-    // ================= POPUP =================
-    let html = "<div style='font-size:13px'>";
+    // ambil atribut dari feature
+    const props = layerItem.feature ? layerItem.feature.properties : null;
 
-    if(txtData){
-        html += txtData.replace(/\n/g,"<br>");
+    let html = "<div style='font-size:13px;max-height:200px;overflow:auto'>";
+    html += "<table style='border-collapse:collapse;width:100%'>";
+
+    if(props){
+        for(let k in props){
+            html += `
+            <tr>
+                <td style="border:1px solid #ccc;padding:4px;font-weight:bold">${k}</td>
+                <td style="border:1px solid #ccc;padding:4px">${props[k]}</td>
+            </tr>`;
+        }
     }else{
-        html += "Tidak ada atribut tambahan";
+        html += "<tr><td>Tidak ada atribut</td></tr>";
     }
 
+    html += "</table>";
+
+    // tombol download
     html += `<hr>
     <button onclick="downloadAll('${key}')"
     style="background:#2c7be5;color:white;padding:6px 10px;
@@ -651,7 +647,6 @@ function attachInteraction(layerItem, key, txtData, layer){
 
         if(!el._binded){
             el.addEventListener("mouseenter", ()=> popupHover = true);
-
             el.addEventListener("mouseleave", ()=>{
                 popupHover = false;
                 setTimeout(()=>{
@@ -660,14 +655,14 @@ function attachInteraction(layerItem, key, txtData, layer){
                     }
                 },200);
             });
-
             el._binded = true;
         }
     });
 
     // ================= CLICK → ZOOM =================
     layerItem.on("click", function(){
-        const bounds = layer.getBounds();
+        const bounds = layerItem.getBounds ? layerItem.getBounds() : null;
+
         if(bounds && bounds.isValid()){
             map.flyToBounds(bounds,{
                 padding:[50,50],
@@ -677,6 +672,7 @@ function attachInteraction(layerItem, key, txtData, layer){
         }
     });
 }
+    
 async function downloadAll(key){
 
     const fileUrl = layerStore[key].url;
