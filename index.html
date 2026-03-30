@@ -249,7 +249,17 @@ const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${
 const res=await fetch(url);
 return await res.json();
 }
-
+    
+async function fetchTXT(key){
+const txtPath = key.replace(/\.(zip|kml|kmz)$/i,".txt");
+const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
+try{
+const res=await fetch(url);
+if(!res.ok) return null;
+return await res.text();
+}catch{return null;}
+}
+    
 async function loadStructure(){
 const container=document.getElementById("layerList");
 const cats=await fetchGitHub(ROOT);
@@ -433,7 +443,7 @@ marker.on("popupopen", function () {
 }
 
 async function loadLayer(key){
-
+    console.log("LOAD:", key, layerStore[key].url);
     if(layerStore[key].layer){
         map.addLayer(layerStore[key].layer);
 
@@ -453,33 +463,28 @@ async function loadLayer(key){
     // ================= ZIP (SHP) =================
     if(layerStore[key].url.toLowerCase().endsWith(".zip")){
 
-        const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
-        const geo = await shp(buffer);
+    const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
+    const geo = await shp(buffer);
 
-        const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
-const geo = await shp(buffer);
+    if(!geo || !geo.features || geo.features.length === 0){
+        console.error("GeoJSON kosong:", key);
+        return;
+    }
 
-if(!geo || !geo.features || geo.features.length === 0){
-    console.error("GeoJSON kosong:", key);
-    return;
-}
+    layer = L.geoJSON(geo,{
+        style:{
+            color:"#3388ff",
+            weight:2,
+            fillOpacity:0.3
+        },
+        onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
+    }).addTo(map);
 
-layer = L.geoJSON(geo,{
-    style:{
-        color:"#3388ff",
-        weight:2,
-        fillOpacity:0.3
-    },
-    onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
-}).addTo(map);
-
-// 🔥 WAJIB
-setTimeout(()=>{
     const bounds = layer.getBounds();
     if(bounds && bounds.isValid()){
         map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
     }
-},200);;
+}
 
     // ================= KMZ =================
     else if(layerStore[key].url.toLowerCase().endsWith(".kmz")){
