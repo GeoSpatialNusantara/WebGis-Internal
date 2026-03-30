@@ -233,14 +233,6 @@ if(layer){
         });
     }
 }
-
-                // aktifkan toggle tahun otomatis
-                document.querySelectorAll(".toggle").forEach(t=>{
-                    if(!t.classList.contains("active")){
-                        t.click();
-                    }
-                });
-
                 searchResult.innerHTML="";
                 searchInput.value="";
             };
@@ -676,7 +668,6 @@ function attachInteraction(layerItem, key, txtData, layer){
 async function downloadAll(key){
 
     const fileUrl = layerStore[key].url;
-    const txtUrl = fileUrl.replace(/\.(zip|kml|kmz)$/i, ".txt");
 
     // download file utama
     const a1 = document.createElement("a");
@@ -685,24 +676,6 @@ async function downloadAll(key){
     document.body.appendChild(a1);
     a1.click();
     a1.remove();
-
-    // download txt
-    try{
-        const res = await fetch(txtUrl);
-        if(res.ok){
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-
-            const a2 = document.createElement("a");
-            a2.href = url;
-            a2.download = txtUrl.split("/").pop();
-            document.body.appendChild(a2);
-            a2.click();
-            a2.remove();
-        }
-    }catch(e){
-        console.log("TXT tidak ditemukan");
-    }
 }    
 loadStructure();
 </script>
