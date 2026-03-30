@@ -582,11 +582,11 @@ else if(layerStore[key].url.endsWith(".kmz")){
     html += "Tidak ada atribut tambahan";
 }
                 html += `<hr>
-<button onclick="downloadAll('${key}')"
-style="background:#2c7be5;color:white;padding:6px 10px;
-border:none;border-radius:4px;cursor:pointer">
-Download
-</button></div>`;
+                <button onclick="downloadAll('${key}')"
+                style="background:#2c7be5;color:white;padding:6px 10px;
+                border:none;border-radius:4px;cursor:pointer">
+                Download
+                </button></div>`;
 
                 l.bindPopup(html,{
     closeButton:false,
