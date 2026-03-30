@@ -432,307 +432,95 @@ marker.on("popupopen", function () {
 
 }
 
-async function fetchTXT(key){
-
-    const txtPath = key.replace(/\.(zip|kml|kmz)$/i, ".txt");
-    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
-
-    try{
-        const res = await fetch(url);
-        if(!res.ok) return null;
-        const text = await res.text();
-        return text;   // ✅ JANGAN JSON.parse
-    }catch(e){
-        return null;
-    }
-}
-    
 async function loadLayer(key){
 
-if(layerStore[key].layer){f
-    map.addLayer(layerStore[key].layer);
-    return;
-}
+    if(layerStore[key].layer){
+        map.addLayer(layerStore[key].layer);
 
-let layer;
-
-// ====== Ambil TXT dulu ======
-const txtData = await fetchTXT(key);
-
-// ================= ZIP (SHP) =================
-if(layerStore[key].url.endsWith(".zip")){
-
-    const res = await fetch(layerStore[key].url);
-    const buffer = await res.arrayBuffer();
-    const geo = await shp(buffer);
-
-    layer = L.geoJSON(geo,{
-        onEachFeature: function(feature, layerItem){
-
-    let html = "<div style='font-size:13px'>";
-
-    if(txtData){
-        html += txtData.replace(/\n/g,"<br>");
-    }else{
-        html += "Tidak ada atribut tambahan";
-    }
-
-    html += `<hr>
-    <button onclick="downloadAll('${key}')"
-    style="background:#2c7be5;color:white;padding:6px 10px;
-    border:none;border-radius:4px;cursor:pointer">
-    Download
-    </button>
-    </div>`;
-
-    layerItem.bindPopup(html,{
-        closeButton:false,
-        autoClose:false,
-        closeOnClick:false
-    });
-
-    // ================= HOVER =================
-    let isHover = false;
-    let popupHover = false;
-
-    layerItem.on("mouseover", function(e){
-        isHover = true;
-        this.openPopup(e.latlng);
-    });
-
-    layerItem.on("mouseout", function(){
-        isHover = false;
-        setTimeout(()=>{
-            if(!isHover && !popupHover){
-                layerItem.closePopup();
-            }
-        },200);
-    });
-
-    layerItem.on("popupopen", function(){
-        const popupEl = layerItem.getPopup().getElement();
-
-        if(!popupEl._binded){
-            popupEl.addEventListener("mouseenter", ()=>{
-                popupHover = true;
-            });
-
-            popupEl.addEventListener("mouseleave", ()=>{
-                popupHover = false;
-                setTimeout(()=>{
-                    if(!isHover && !popupHover){
-                        layerItem.closePopup();
-                    }
-                },200);
-            });
-
-            popupEl._binded = true;
-        }
-    });
-
-    // ================= CLICK ZOOM =================
-    layerItem.on("click", function(){
-        const bounds = layer.getBounds();
+        // zoom otomatis saat klik/search
+        const bounds = layerStore[key].layer.getBounds();
         if(bounds && bounds.isValid()){
-            map.flyToBounds(bounds,{
-                padding:[50,50],
-                maxZoom:16,
-                duration:1.2   // smooth zoom
-            });
+            map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
         }
-    });
 
-// ================= KMZ =================
-else if (layerStore[key].url.endsWith(".kmz")){
-
-    const res = await fetch(layerStore[key].url);
-    const buffer = await res.arrayBuffer();
-    const zip = await JSZip.loadAsync(buffer);
-
-    let kmlFile;
-
-    zip.forEach((relativePath, zipEntry)=>{
-        if(relativePath.endsWith(".kml")){
-            kmlFile = zipEntry;
-        }
-    });
-
-    if(kmlFile){
-
-        const kmlText = await kmlFile.async("text");
-        layer = omnivore.kml.parse(kmlText);
-
-        layer.on("ready", function(){
-
-            layer.eachLayer(function(l){
-
-                if(l instanceof L.Marker){
-                    layer.removeLayer(l);
-                    return;
-                }
-
-                let html="<div style='font-size:13px'>";
-
-               if(txtData){
-    html += txtData.replace(/\n/g,"<br>");
-}else{
-    html += "Tidak ada atribut tambahan";
-}
-                html += `<hr>
-                <button onclick="downloadAll('${key}')"
-                style="background:#2c7be5;color:white;padding:6px 10px;
-                border:none;border-radius:4px;cursor:pointer">
-                Download
-                </button></div>`;
-
-                l.bindPopup(html,{
-    closeButton:false,
-    autoClose:false,
-    closeOnClick:false
-});let isHover=false;
-let popupHover=false;
-
-l.on("mouseover", function(e){
-    isHover=true;
-    this.openPopup(e.latlng);
-});
-
-l.on("mouseout", function(){
-    isHover=false;
-    setTimeout(()=>{
-        if(!isHover && !popupHover){
-            l.closePopup();
-        }
-    },200);
-});
-
-l.on("popupopen", function(){
-    const el = l.getPopup().getElement();
-
-    if(!el._binded){
-        el.addEventListener("mouseenter", ()=> popupHover=true);
-        el.addEventListener("mouseleave", ()=>{
-            popupHover=false;
-            setTimeout(()=>{
-                if(!isHover && !popupHover){
-                    l.closePopup();
-                }
-            },200);
-        });
-        el._binded=true;
-    }
-});
-
-l.on("click", function(){
-    const bounds = layer.getBounds();
-    if(bounds && bounds.isValid()){
-        map.flyToBounds(bounds,{
-            padding:[50,50],
-            maxZoom:16,
-            duration:1.2
-        });
-    }
-});
-
-            });
-
-        });
-
-        layer.addTo(map);
-    }
-}
-
-
-// ================= KML =================
-else{
-
-    layer = omnivore.kml(layerStore[key].url);
-
-    layer.on("ready", function(){
-
-        layer.eachLayer(function(l){
-
-    if(l instanceof L.Marker){
-        layer.removeLayer(l);
         return;
     }
 
-    let html = "<div style='font-size:13px'>";
+    let layer;
 
-    if(txtData){
-        html += txtData.replace(/\n/g,"<br>");
-    }else{
-        html += "Tidak ada atribut tambahan";
+    const txtData = await fetchTXT(key);
+
+    // ================= ZIP (SHP) =================
+    if(layerStore[key].url.toLowerCase().endsWith(".zip")){
+
+        const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
+        const geo = await shp(buffer);
+
+        layer = L.geoJSON(geo,{
+            onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
+        }).addTo(map);
     }
 
-    html += `<hr>
-    <button onclick="downloadAll('${key}')"
-    style="background:#2c7be5;color:white;padding:6px 10px;
-    border:none;border-radius:4px;cursor:pointer">
-    Download
-    </button></div>`;
+    // ================= KMZ =================
+    else if(layerStore[key].url.toLowerCase().endsWith(".kmz")){
 
-    l.bindPopup(html,{
-        closeButton:false,
-        autoClose:false,
-        closeOnClick:false
-    });
+        const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
+        const zip = await JSZip.loadAsync(buffer);
 
-    let isHover=false;
-    let popupHover=false;
-
-    l.on("mouseover", function(e){
-        isHover=true;
-        this.openPopup(e.latlng);
-    });
-
-    l.on("mouseout", function(){
-        isHover=false;
-        setTimeout(()=>{
-            if(!isHover && !popupHover){
-                l.closePopup();
-            }
-        },200);
-    });
-
-    l.on("popupopen", function(){
-        const el = l.getPopup().getElement();
-
-        if(!el._binded){
-            el.addEventListener("mouseenter", ()=> popupHover=true);
-            el.addEventListener("mouseleave", ()=>{
-                popupHover=false;
-                setTimeout(()=>{
-                    if(!isHover && !popupHover){
-                        l.closePopup();
-                    }
-                },200);
-            });
-            el._binded=true;
-        }
-    });
-
-    l.on("click", function(){
-        const bounds = layer.getBounds();
-        if(bounds && bounds.isValid()){
-            map.flyToBounds(bounds,{
-                padding:[50,50],
-                maxZoom:16,
-                duration:1.2
-            });
-        }
-    });
-
-});
-
+        let kmlFile=null;
+        zip.forEach((p,z)=>{
+            if(p.toLowerCase().endsWith(".kml")) kmlFile=z;
         });
-    layer.addTo(map);
-}
 
-layerStore[key].layer = layer;
+        if(!kmlFile){
+            console.error("KML tidak ditemukan:", key);
+            return;
+        }
 
+        const text = await kmlFile.async("text");
+
+        const blob = new Blob([text],{type:"text/xml"});
+        const url = URL.createObjectURL(blob);
+
+        layer = omnivore.kml(url);
+
+        layer.on("ready",()=>{
+            layer.eachLayer(l=>{
+                if(l instanceof L.Marker) return;
+                attachInteraction(l,key,txtData,layer);
+            });
+
+            layer.addTo(map);
+
+            const bounds = layer.getBounds();
+            if(bounds && bounds.isValid()){
+                map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
+            }
+        });
+    }
+
+    // ================= KML =================
+    else{
+
+        layer = omnivore.kml(layerStore[key].url);
+
+        layer.on("ready",()=>{
+            layer.eachLayer(l=>{
+                if(l instanceof L.Marker) return;
+                attachInteraction(l,key,txtData,layer);
+            });
+
+            layer.addTo(map);
+
+            const bounds = layer.getBounds();
+            if(bounds && bounds.isValid()){
+                map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
+            }
+        });
+    }
+
+    layerStore[key].layer = layer;
 }
-  
 /* ================= UPLOAD ================= */
 uploadInput.addEventListener("change",async e=>{
 for(const file of e.target.files){
@@ -790,7 +578,80 @@ map.removeLayer(layer);
 toggle.click();
 }
 });
+    
+function attachInteraction(layerItem, key, txtData, layer){
 
+    // ================= POPUP =================
+    let html = "<div style='font-size:13px'>";
+
+    if(txtData){
+        html += txtData.replace(/\n/g,"<br>");
+    }else{
+        html += "Tidak ada atribut tambahan";
+    }
+
+    html += `<hr>
+    <button onclick="downloadAll('${key}')"
+    style="background:#2c7be5;color:white;padding:6px 10px;
+    border:none;border-radius:4px;cursor:pointer">
+    Download
+    </button></div>`;
+
+    layerItem.bindPopup(html,{
+        closeButton:false,
+        autoClose:false,
+        closeOnClick:false
+    });
+
+    // ================= HOVER =================
+    let isHover = false;
+    let popupHover = false;
+
+    layerItem.on("mouseover", function(e){
+        isHover = true;
+        this.openPopup(e.latlng);
+    });
+
+    layerItem.on("mouseout", function(){
+        isHover = false;
+        setTimeout(()=>{
+            if(!isHover && !popupHover){
+                layerItem.closePopup();
+            }
+        },200);
+    });
+
+    layerItem.on("popupopen", function(){
+        const el = layerItem.getPopup().getElement();
+
+        if(!el._binded){
+            el.addEventListener("mouseenter", ()=> popupHover = true);
+
+            el.addEventListener("mouseleave", ()=>{
+                popupHover = false;
+                setTimeout(()=>{
+                    if(!isHover && !popupHover){
+                        layerItem.closePopup();
+                    }
+                },200);
+            });
+
+            el._binded = true;
+        }
+    });
+
+    // ================= CLICK → ZOOM =================
+    layerItem.on("click", function(){
+        const bounds = layer.getBounds();
+        if(bounds && bounds.isValid()){
+            map.flyToBounds(bounds,{
+                padding:[50,50],
+                maxZoom:16,
+                duration:1.2
+            });
+        }
+    });
+}
 async function downloadAll(key){
 
     const fileUrl = layerStore[key].url;
