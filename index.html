@@ -456,10 +456,30 @@ async function loadLayer(key){
         const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
         const geo = await shp(buffer);
 
-        layer = L.geoJSON(geo,{
-            onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
-        }).addTo(map);
+        const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
+const geo = await shp(buffer);
+
+if(!geo || !geo.features || geo.features.length === 0){
+    console.error("GeoJSON kosong:", key);
+    return;
+}
+
+layer = L.geoJSON(geo,{
+    style:{
+        color:"#3388ff",
+        weight:2,
+        fillOpacity:0.3
+    },
+    onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
+}).addTo(map);
+
+// 🔥 WAJIB
+setTimeout(()=>{
+    const bounds = layer.getBounds();
+    if(bounds && bounds.isValid()){
+        map.fitBounds(bounds,{padding:[50,50],maxZoom:16});
     }
+},200);;
 
     // ================= KMZ =================
     else if(layerStore[key].url.toLowerCase().endsWith(".kmz")){
