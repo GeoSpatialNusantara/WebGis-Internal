@@ -541,13 +541,11 @@ if(layerStore[key].url.endsWith(".zip")){
             });
         }
     });
-}
- // end onEachFeature
-    })
+
         layer.addTo(map);
 
 // ================= KMZ =================
-else if(layerStore[key].url.endsWith(".kmz")){
+else if (layerStore[key].url.endsWith(".kmz")){
 
     const res = await fetch(layerStore[key].url);
     const buffer = await res.arrayBuffer();
