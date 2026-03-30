@@ -467,26 +467,80 @@ if(layerStore[key].url.endsWith(".zip")){
     const geo = await shp(buffer);
 
     layer = L.geoJSON(geo,{
-        onEachFeature:function(feature,layerItem){
+        onEachFeature: function(feature, layerItem){
 
-            let html="<div style='font-size:13px'>";
+    let html = "<div style='font-size:13px'>";
 
-           if(txtData){
-    html += txtData.replace(/\n/g,"<br>");
-}else{
-    html += "Tidak ada atribut tambahan";
-}
+    if(txtData){
+        html += txtData.replace(/\n/g,"<br>");
+    }else{
+        html += "Tidak ada atribut tambahan";
+    }
 
-            html+=`<hr>
-            <a href="${layerStore[key].url}" target="_blank"
-            style="background:#2c7be5;color:white;padding:6px 10px;
-            text-decoration:none;border-radius:4px">
-            Download
-            </a></div>`;
+    html += `<hr>
+    <button onclick="downloadAll('${key}')"
+    style="background:#2c7be5;color:white;padding:6px 10px;
+    border:none;border-radius:4px;cursor:pointer">
+    Download
+    </button>
+    </div>`;
 
-            layerItem.bindPopup(html);
+    layerItem.bindPopup(html,{
+        closeButton:false,
+        autoClose:false,
+        closeOnClick:false
+    });
+
+    // ================= HOVER =================
+    let isHover = false;
+    let popupHover = false;
+
+    layerItem.on("mouseover", function(e){
+        isHover = true;
+        this.openPopup(e.latlng);
+    });
+
+    layerItem.on("mouseout", function(){
+        isHover = false;
+        setTimeout(()=>{
+            if(!isHover && !popupHover){
+                layerItem.closePopup();
+            }
+        },200);
+    });
+
+    layerItem.on("popupopen", function(){
+        const popupEl = layerItem.getPopup().getElement();
+
+        if(!popupEl._binded){
+            popupEl.addEventListener("mouseenter", ()=>{
+                popupHover = true;
+            });
+
+            popupEl.addEventListener("mouseleave", ()=>{
+                popupHover = false;
+                setTimeout(()=>{
+                    if(!isHover && !popupHover){
+                        layerItem.closePopup();
+                    }
+                },200);
+            });
+
+            popupEl._binded = true;
         }
-    }).addTo(map);
+    });
+
+    // ================= CLICK ZOOM =================
+    layerItem.on("click", function(){
+        const bounds = layer.getBounds();
+        if(bounds && bounds.isValid()){
+            map.flyToBounds(bounds,{
+                padding:[50,50],
+                maxZoom:16,
+                duration:1.2   // smooth zoom
+            });
+        }
+    });
 }
 
 
@@ -522,8 +576,7 @@ else if(layerStore[key].url.endsWith(".kmz")){
                 let html="<div style='font-size:13px'>";
 
                 if(txtData){
-                    for(let p in txtData){
-                        html+=`<b>${p}</b>: ${txtData[p]}<br>`;
+                    html += txtData.replace(/\n/g,"<br>");
                     }
                 }else{
                     html+="Tidak ada atribut tambahan";
@@ -576,32 +629,77 @@ else{
 
         layer.eachLayer(function(l){
 
-            if(l instanceof L.Marker){
-                layer.removeLayer(l);
-                return;
+    if(l instanceof L.Marker){
+        layer.removeLayer(l);
+        return;
+    }
+
+    let html = "<div style='font-size:13px'>";
+
+    if(txtData){
+        html += txtData.replace(/\n/g,"<br>");
+    }else{
+        html += "Tidak ada atribut tambahan";
+    }
+
+    html += `<hr>
+    <button onclick="downloadAll('${key}')"
+    style="background:#2c7be5;color:white;padding:6px 10px;
+    border:none;border-radius:4px;cursor:pointer">
+    Download
+    </button></div>`;
+
+    l.bindPopup(html,{
+        closeButton:false,
+        autoClose:false,
+        closeOnClick:false
+    });
+
+    let isHover=false;
+    let popupHover=false;
+
+    l.on("mouseover", function(e){
+        isHover=true;
+        this.openPopup(e.latlng);
+    });
+
+    l.on("mouseout", function(){
+        isHover=false;
+        setTimeout(()=>{
+            if(!isHover && !popupHover){
+                l.closePopup();
             }
+        },200);
+    });
 
-            let html="<div style='font-size:13px'>";
+    l.on("popupopen", function(){
+        const el = l.getPopup().getElement();
 
-            if(txtData){
-                for(let p in txtData){
-                    html+=`<b>${p}</b>: ${txtData[p]}<br>`;
-                }
-            }else{
-                html+="Tidak ada atribut tambahan";
-            }
+        if(!el._binded){
+            el.addEventListener("mouseenter", ()=> popupHover=true);
+            el.addEventListener("mouseleave", ()=>{
+                popupHover=false;
+                setTimeout(()=>{
+                    if(!isHover && !popupHover){
+                        l.closePopup();
+                    }
+                },200);
+            });
+            el._binded=true;
+        }
+    });
 
-            html+=`<hr>
-            <a href="${layerStore[key].url}" target="_blank"
-            style="background:#2c7be5;color:white;padding:6px 10px;
-            text-decoration:none;border-radius:4px">
-            Download
-            </a></div>`;
+    l.on("click", function(){
+        const bounds = layer.getBounds();
+        if(bounds && bounds.isValid()){
+            map.flyToBounds(bounds,{
+                padding:[50,50],
+                maxZoom:16,
+                duration:1.2
+            });
+        }
+    });
 
-            l.bindPopup(html,{
-    closeButton:false,
-    autoClose:false,
-    closeOnClick:false
 });
 
 let isHover = false;
@@ -689,6 +787,37 @@ toggle.click();
 }
 });
 
+async function downloadAll(key){
+
+    const fileUrl = layerStore[key].url;
+    const txtUrl = fileUrl.replace(/\.(zip|kml|kmz)$/i, ".txt");
+
+    // download file utama
+    const a1 = document.createElement("a");
+    a1.href = fileUrl;
+    a1.download = "";
+    document.body.appendChild(a1);
+    a1.click();
+    a1.remove();
+
+    // download txt
+    try{
+        const res = await fetch(txtUrl);
+        if(res.ok){
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+
+            const a2 = document.createElement("a");
+            a2.href = url;
+            a2.download = txtUrl.split("/").pop();
+            document.body.appendChild(a2);
+            a2.click();
+            a2.remove();
+        }
+    }catch(e){
+        console.log("TXT tidak ditemukan");
+    }
+}    
 loadStructure();
 </script>
 
