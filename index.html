@@ -582,27 +582,35 @@ toggle.click();
     
 function attachInteraction(layerItem, key, txtData, layer){
 
-    // ambil atribut dari feature
-    const props = layerItem.feature ? layerItem.feature.properties : null;
+    let data = null;
+
+    // parsing txt → JSON
+    if(txtData){
+        try{
+            data = JSON.parse(txtData);
+        }catch(e){
+            console.error("Format TXT bukan JSON:", key);
+        }
+    }
 
     let html = "<div style='font-size:13px;max-height:200px;overflow:auto'>";
     html += "<table style='border-collapse:collapse;width:100%'>";
 
-    if(props){
-        for(let k in props){
+    if(data){
+        for(let k in data){
             html += `
             <tr>
-                <td style="border:1px solid #ccc;padding:4px;font-weight:bold">${k}</td>
-                <td style="border:1px solid #ccc;padding:4px">${props[k]}</td>
+                <td style="border:1px solid #ccc;padding:4px;font-weight:bold">${k.charAt(0).toUpperCase() + k.slice(1)}</td>
+                <td style="border:1px solid #ccc;padding:4px">${data[k]}</td>
             </tr>`;
         }
     }else{
-        html += "<tr><td>Tidak ada atribut</td></tr>";
+        html += "<tr><td>Tidak ada data TXT</td></tr>";
     }
 
     html += "</table>";
 
-    // tombol download
+    // tombol download 2 file
     html += `<hr>
     <button onclick="downloadAll('${key}')"
     style="background:#2c7be5;color:white;padding:6px 10px;
@@ -616,7 +624,7 @@ function attachInteraction(layerItem, key, txtData, layer){
         closeOnClick:false
     });
 
-    // ================= HOVER =================
+    // ===== HOVER =====
     let isHover = false;
     let popupHover = false;
 
@@ -651,7 +659,7 @@ function attachInteraction(layerItem, key, txtData, layer){
         }
     });
 
-    // ================= CLICK → ZOOM =================
+    // ===== CLICK ZOOM =====
     layerItem.on("click", function(){
         const bounds = layerItem.getBounds ? layerItem.getBounds() : null;
 
@@ -668,6 +676,8 @@ function attachInteraction(layerItem, key, txtData, layer){
 async function downloadAll(key){
 
     const fileUrl = layerStore[key].url;
+    const txtPath = key.replace(/\.(zip|kml|kmz)$/i,".txt");
+    const txtUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
 
     // download file utama
     const a1 = document.createElement("a");
@@ -676,6 +686,14 @@ async function downloadAll(key){
     document.body.appendChild(a1);
     a1.click();
     a1.remove();
+
+    // download file txt
+    const a2 = document.createElement("a");
+    a2.href = txtUrl;
+    a2.download = "";
+    document.body.appendChild(a2);
+    a2.click();
+    a2.remove();
 }    
 loadStructure();
 </script>
