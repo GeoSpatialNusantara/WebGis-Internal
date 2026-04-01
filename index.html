@@ -588,6 +588,13 @@ map.removeLayer(layer);
 toggle.click();
 }
 });
+
+function formatLabel(text){
+    return text
+        .replace(/_/g," ")
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
     
 function attachInteraction(layerItem, key, txtData, layer){
 
@@ -625,18 +632,78 @@ if(txtData){
     }
 }
 
-    let html = "<div style='font-size:13px;max-height:200px;overflow:auto'>";
-   html += `
-<table style="
-    border-collapse:collapse;
-    width:100%;
-    table-layout:auto;
+const fileName = key.split("/").pop();
+
+let html = `
+<div style="
+    font-family:Arial;
+    width:260px;
 ">
+
+    <!-- HEADER -->
+    <div style="
+        font-weight:bold;
+        font-size:14px;
+        margin-bottom:8px;
+        color:#2c7be5;
+    ">
+        📍 ${fileName}
+    </div>
+
+    <!-- CONTENT -->
+    <div style="
+        max-height:180px;
+        overflow:auto;
+        border:1px solid #eee;
+        border-radius:6px;
+    ">
+
+    <table style="
+        width:100%;
+        border-collapse:collapse;
+        font-size:12px;
+    ">
 `;
 
-    if(data){
-        for(let k in data){
-            html += `
+    let i = 0;
+
+if(data){
+    for(let k in data){
+
+        const bg = i % 2 === 0 ? "#ffffff" : "#f9f9f9";
+
+        html += `
+        <tr style="background:${bg}">
+            <td style="
+                padding:6px;
+                font-weight:600;
+                white-space:nowrap;
+                width:45%;
+                color:#444;
+                border-bottom:1px solid #eee;
+            ">
+                ${formatLabel(k)}
+            </td>
+
+            <td style="
+                padding:6px;
+                color:#222;
+                border-bottom:1px solid #eee;
+            ">
+                ${data[k]}
+            </td>
+        </tr>
+        `;
+        i++;
+    }
+}else{
+    html += `
+    <tr>
+        <td style="padding:6px;color:#999">
+            Data tidak tersedia
+        </td>
+    </tr>`;
+}
 <tr>
     <td style="
         border:1px solid #ccc;
@@ -662,7 +729,29 @@ if(txtData){
     }
 
     html += "</table>";
+    html += `
+    </table>
+    </div>
 
+    <!-- BUTTON -->
+    <div style="margin-top:10px;text-align:center;">
+        <button onclick="downloadAll('${key}')"
+        style="
+            background:#2c7be5;
+            color:white;
+            border:none;
+            padding:8px 12px;
+            border-radius:6px;
+            cursor:pointer;
+            width:100%;
+            font-weight:bold;
+        ">
+            ⬇ Download Data
+        </button>
+    </div>
+
+</div>
+`;
     // tombol download 2 file
     html += `<hr>
     <button onclick="downloadAll('${key}')"
