@@ -591,19 +591,37 @@ toggle.click();
     
 function attachInteraction(layerItem, key, txtData, layer){
 
-    let data = null;
+let data = null;
 
 if(txtData){
     try{
-        // bersihkan karakter aneh
-        const clean = txtData.replace(/^\uFEFF/, '').trim();
-
-        console.log("TXT CLEAN:", clean);
-
-        data = JSON.parse(clean);
-
+        // coba parse JSON dulu
+        data = JSON.parse(txtData);
     }catch(e){
-        console.error("Gagal parse TXT:", key, e);
+
+        // fallback: parsing manual format TXT bebas
+        data = {};
+        const lines = txtData.split("\n");
+
+        lines.forEach(line => {
+            line = line.trim();
+
+            if(line.includes(":")){
+                const parts = line.split(":");
+
+                const key = parts[0]
+                    .replace(/["{}]/g,"")
+                    .trim();
+
+                const value = parts.slice(1).join(":")
+                    .replace(/["{}]/g,"")
+                    .trim();
+
+                if(key) data[key] = value;
+            }
+        });
+
+        console.log("TXT parsed manual:", data);
     }
 }
 
