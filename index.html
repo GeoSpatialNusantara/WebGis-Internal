@@ -249,13 +249,22 @@ return await res.json();
 }
     
 async function fetchTXT(key){
-const txtPath = key.replace(/\.(zip|kml|kmz)$/i,".txt");
-const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
-try{
-const res=await fetch(url);
-if(!res.ok) return null;
-return await res.text();
-}catch{return null;}
+    const txtPath = key.replace(/\.(zip|kml|kmz)$/i,".txt");
+    const url = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
+
+    try{
+        const res = await fetch(url + "?t=" + Date.now()); // ⬅️ anti cache
+        if(!res.ok){
+            console.warn("TXT tidak ditemukan:", url);
+            return null;
+        }
+
+        const text = await res.text();
+        return text.trim(); // ⬅️ penting
+    }catch(e){
+        console.error("Fetch TXT error:", e);
+        return null;
+    }
 }
     
 async function loadStructure(){
@@ -584,11 +593,15 @@ function attachInteraction(layerItem, key, txtData, layer){
 
     let data = null;
 
-    if(txtData){
+if(txtData){
     try{
-        console.log("TXT RAW:", txtData); // debug
-        data = JSON.parse(txtData);
-        console.log("TXT PARSED:", data); // debug
+        // bersihkan karakter aneh
+        const clean = txtData.replace(/^\uFEFF/, '').trim();
+
+        console.log("TXT CLEAN:", clean);
+
+        data = JSON.parse(clean);
+
     }catch(e){
         console.error("Gagal parse TXT:", key, e);
     }
