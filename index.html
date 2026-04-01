@@ -647,7 +647,7 @@ let html = `
         margin-bottom:8px;
         color:#2c7be5;
     ">
-        📍 ${fileName}
+        ${fileName}
     </div>
 
     <!-- CONTENT -->
@@ -729,13 +729,6 @@ if(data){
 
 </div>
 `;
-    // tombol download 2 file
-    html += `<hr>
-    <button onclick="downloadAll('${key}')"
-    style="background:#2c7be5;color:white;padding:6px 10px;
-    border:none;border-radius:4px;cursor:pointer">
-    Download
-    </button></div>`;
 
     layerItem.bindPopup(html,{
         closeButton:false,
