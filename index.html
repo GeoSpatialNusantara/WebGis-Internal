@@ -693,24 +693,43 @@ async function downloadAll(key){
     const txtPath = key.replace(/\.(zip|kml|kmz)$/i,".txt");
     const txtUrl = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${txtPath}`;
 
-    // download file utama
-    const a1 = document.createElement("a");
-    a1.href = fileUrl;
-    a1.setAttribute("download","");
-    document.body.appendChild(a1);
-    a1.click();
-    a1.remove();
+    // ===== DOWNLOAD FILE UTAMA =====
+    try{
+        const res1 = await fetch(fileUrl);
+        const blob1 = await res1.blob();
 
-    // kasih jeda biar tidak bentrok
-    setTimeout(()=>{
-        const a2 = document.createElement("a");
-        a2.href = txtUrl;
-        a2.setAttribute("download","");
-        document.body.appendChild(a2);
-        a2.click();
-        a2.remove();
-    }, 500);
-}  
+        const a1 = document.createElement("a");
+        a1.href = URL.createObjectURL(blob1);
+        a1.download = fileUrl.split("/").pop();
+        document.body.appendChild(a1);
+        a1.click();
+        a1.remove();
+
+    }catch(e){
+        console.error("Download file utama gagal:", e);
+    }
+
+    // ===== DOWNLOAD TXT =====
+    try{
+        const res2 = await fetch(txtUrl);
+
+        if(res2.ok){
+            const blob2 = await res2.blob();
+
+            const a2 = document.createElement("a");
+            a2.href = URL.createObjectURL(blob2);
+            a2.download = txtPath.split("/").pop();
+            document.body.appendChild(a2);
+            a2.click();
+            a2.remove();
+        }else{
+            console.warn("TXT tidak ditemukan:", txtUrl);
+        }
+
+    }catch(e){
+        console.error("Download TXT gagal:", e);
+    }
+}
 loadStructure();
 </script>
 
