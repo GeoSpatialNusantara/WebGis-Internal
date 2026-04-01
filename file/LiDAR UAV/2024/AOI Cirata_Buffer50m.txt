@@ -4,7 +4,7 @@
 "PROVINSI"	: "JAWA BARAT"
 "KABUPATEN"	: "PURWAKARTA"
 "VOLUME (ha)"	: "-"
-"H (CE90 m"	: "0.09"
+"H (CE90) m"	: "0.09"
 "V (LE90) m"	: "0.033"
 "GSD"	cm	: "6"
 "TUJUAN"	: "Pengukuran topografi menggunakan teknologi LiDAR dengan wahana UAV"
