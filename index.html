@@ -477,7 +477,7 @@ async function loadLayer(key){
             weight:2,
             fillOpacity:0.3
         },
-        onEachFeature:(f,l)=> attachInteraction(l, key, txtData || null, layer);
+        onEachFeature:(f,l)=> attachInteraction(l, key, txtData || null, layer)
     }).addTo(map);
 }
 
@@ -507,7 +507,7 @@ async function loadLayer(key){
         layer.on("ready",()=>{
             layer.eachLayer(l=>{
                 if(l instanceof L.Marker) return;
-                attachInteraction(l, key, txtData || null, layer);
+                attachInteraction(l, key, txtData || null, layer)
             });
 
             layer.addTo(map);
@@ -522,7 +522,7 @@ async function loadLayer(key){
         layer.on("ready",()=>{
             layer.eachLayer(l=>{
                 if(l instanceof L.Marker) return;
-                attachInteraction(l, key, txtData || null, layer);
+                attachInteraction(l, key, txtData || null, layer)
             });
 
             layer.addTo(map);
