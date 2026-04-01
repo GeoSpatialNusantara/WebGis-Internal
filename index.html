@@ -590,10 +590,7 @@ toggle.click();
 });
 
 function formatLabel(text){
-    return text
-        .replace(/_/g," ")
-        .toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase());
+    return text.replace(/_/g," ");
 }
     
 function attachInteraction(layerItem, key, txtData, layer){
