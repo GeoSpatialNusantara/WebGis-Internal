@@ -1,4 +1,3 @@
-{
 "TAHUN"		: "2024",
 "JENIS"		: "LiDAR UAV",
 "NAMA KLIEN"	: "-",
@@ -9,4 +8,3 @@
 "V (LE90) m"	: "0.033",
 "GSD"	cm	: "6",
 "TUJUAN"	: "Pengukuran topografi menggunakan teknologi LiDAR dengan wahana UAV"
-}
