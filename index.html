@@ -468,7 +468,7 @@ async function loadLayer(key){
             weight:2,
             fillOpacity:0.3
         },
-        onEachFeature:(f,l)=> attachInteraction(l,key,txtData,layer)
+        onEachFeature:(f,l)=> attachInteraction(l, key, txtData || null, layer);
     }).addTo(map);
 }
 
@@ -498,7 +498,7 @@ async function loadLayer(key){
         layer.on("ready",()=>{
             layer.eachLayer(l=>{
                 if(l instanceof L.Marker) return;
-                attachInteraction(l,key,txtData,layer);
+                attachInteraction(l, key, txtData || null, layer);
             });
 
             layer.addTo(map);
@@ -513,7 +513,7 @@ async function loadLayer(key){
         layer.on("ready",()=>{
             layer.eachLayer(l=>{
                 if(l instanceof L.Marker) return;
-                attachInteraction(l,key,txtData,layer);
+                attachInteraction(l, key, txtData || null, layer);
             });
 
             layer.addTo(map);
@@ -584,14 +584,15 @@ function attachInteraction(layerItem, key, txtData, layer){
 
     let data = null;
 
-    // parsing txt → JSON
     if(txtData){
-        try{
-            data = JSON.parse(txtData);
-        }catch(e){
-            console.error("Format TXT bukan JSON:", key);
-        }
+    try{
+        console.log("TXT RAW:", txtData); // debug
+        data = JSON.parse(txtData);
+        console.log("TXT PARSED:", data); // debug
+    }catch(e){
+        console.error("Gagal parse TXT:", key, e);
     }
+}
 
     let html = "<div style='font-size:13px;max-height:200px;overflow:auto'>";
     html += "<table style='border-collapse:collapse;width:100%'>";
@@ -682,19 +683,21 @@ async function downloadAll(key){
     // download file utama
     const a1 = document.createElement("a");
     a1.href = fileUrl;
-    a1.download = "";
+    a1.setAttribute("download","");
     document.body.appendChild(a1);
     a1.click();
     a1.remove();
 
-    // download file txt
-    const a2 = document.createElement("a");
-    a2.href = txtUrl;
-    a2.download = "";
-    document.body.appendChild(a2);
-    a2.click();
-    a2.remove();
-}    
+    // kasih jeda biar tidak bentrok
+    setTimeout(()=>{
+        const a2 = document.createElement("a");
+        a2.href = txtUrl;
+        a2.setAttribute("download","");
+        document.body.appendChild(a2);
+        a2.click();
+        a2.remove();
+    }, 500);
+}  
 loadStructure();
 </script>
 
