@@ -95,7 +95,7 @@ border:1px solid #ddd;
 background:#2c7be5;
 color:white;
 }
-    
+   
 </style>
 </head>
 
@@ -115,7 +115,16 @@ color:white;
 
 <input type="text" id="searchInput" placeholder="Cari file... (contoh: 2023, jalan, sulawesi)">
 <div id="searchResult" style="margin-bottom:15px;"></div>
-
+<div id="legend" style="
+    background:white;
+    padding:10px;
+    border-radius:8px;
+    margin-bottom:15px;
+    border:1px solid #ddd;
+">
+<b>Legenda</b>
+<div id="legendList" style="margin-top:8px;"></div>
+</div> 
 <div id="layerList"></div>
 
 </div>
@@ -193,7 +202,50 @@ tab.classList.add("active");
 document.getElementById(tab.dataset.tab).classList.add("active");
 };
 });
+    
+let categoryColors = {};
 
+function getRandomColor(){
+    const r = Math.floor(Math.random()*156)+100;
+    const g = Math.floor(Math.random()*156)+100;
+    const b = Math.floor(Math.random()*156)+100;
+    return `rgb(${r},${g},${b})`;
+}
+
+function getCategoryFromPath(path){
+    return path.split("/")[1];
+}
+
+function renderLegend(){
+    const legendList = document.getElementById("legendList");
+    legendList.innerHTML = "";
+
+    for(let category in categoryColors).sort()){
+
+        const color = categoryColors[category];
+
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.marginBottom = "6px";
+
+        const box = document.createElement("div");
+        box.style.width = "16px";
+        box.style.height = "16px";
+        box.style.background = color;
+        box.style.marginRight = "8px";
+        box.style.borderRadius = "3px";
+        box.style.border = "1px solid #999";
+
+        const label = document.createElement("span");
+        label.innerText = formatLabel(category);
+
+        row.appendChild(box);
+        row.appendChild(label);
+
+        legendList.appendChild(row);
+    }
+}    
 let layerStore={};
 
 const searchInput = document.getElementById("searchInput");
@@ -459,9 +511,9 @@ async function loadLayer(key){
     let layer;
 
     const txtData = await fetchTXT(key);
-
+    
     // ================= ZIP (SHP) =================
-    if(layerStore[key].url.toLowerCase().endsWith(".zip")){
+if(layerStore[key].url.toLowerCase().endsWith(".zip")){
 
     const buffer = await (await fetch(layerStore[key].url)).arrayBuffer();
     const geo = await shp(buffer);
@@ -471,13 +523,22 @@ async function loadLayer(key){
         return;
     }
 
+    // ✅ ambil kategori DI LUAR
+    const category = getCategoryFromPath(key);
+
+    if(!categoryColors[category]){
+        categoryColors[category] = getRandomColor();
+        renderLegend();
+    }
+
+    // ✅ baru buat layer
     layer = L.geoJSON(geo,{
         style:{
-            color:"#3388ff",
+            color: categoryColors[category],
             weight:2,
             fillOpacity:0.3
         },
-        onEachFeature:(f,l)=> attachInteraction(l, key, txtData || null, layer)
+        onEachFeature:(f,l)=> attachInteraction(l, key, txtData || null, null)
     }).addTo(map);
 }
 
@@ -505,10 +566,26 @@ async function loadLayer(key){
         layer = omnivore.kml(url);
 
         layer.on("ready",()=>{
-            layer.eachLayer(l=>{
-                if(l instanceof L.Marker) return;
-                attachInteraction(l, key, txtData || null, layer)
-            });
+            const category = getCategoryFromPath(key);
+
+if(!categoryColors[category]){
+    categoryColors[category] = getRandomColor();
+    renderLegend(); // ⬅️ update legenda otomatis
+}
+
+layer.eachLayer(l=>{
+    if(l instanceof L.Marker) return;
+
+    if(l.setStyle){
+        l.setStyle({
+            color: categoryColors[category],
+            weight:2,
+            fillOpacity:0.3
+        });
+    }
+
+    attachInteraction(l, key, txtData || null, layer)
+});
 
             layer.addTo(map);
         });
@@ -520,10 +597,26 @@ async function loadLayer(key){
         layer = omnivore.kml(layerStore[key].url);
 
         layer.on("ready",()=>{
-            layer.eachLayer(l=>{
-                if(l instanceof L.Marker) return;
-                attachInteraction(l, key, txtData || null, layer)
-            });
+            const category = getCategoryFromPath(key);
+
+if(!categoryColors[category]){
+    categoryColors[category] = getRandomColor();
+    renderLegend(); // ⬅️ update legenda otomatis
+}
+
+layer.eachLayer(l=>{
+    if(l instanceof L.Marker) return;
+
+    if(l.setStyle){
+        l.setStyle({
+            color: categoryColors[category],
+            weight:2,
+            fillOpacity:0.3
+        });
+    }
+
+    attachInteraction(l, key, txtData || null, layer)
+});
 
             layer.addTo(map);
         });
