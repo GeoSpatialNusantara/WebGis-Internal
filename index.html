@@ -216,18 +216,34 @@ document.getElementById(tab.dataset.tab).classList.add("active");
 let categoryColors = {};
 
 function getRandomColor(){
-    const colors = [
-        "#e6194b","#3cb44b","#ffe119","#4363d8","#f58231",
-        "#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
-        "#008080","#e6beff","#9a6324","#fffac8","#800000",
-        "#aaffc3","#000075","#808000","#ff4500","#00ffcc"
-    ];
+    const fixedColors = [
+    "#e6194b", // merah
+    "#3cb44b", // hijau
+    "#ffe119", // kuning
+    "#4363d8", // biru
+    "#f58231", // oranye
+    "#911eb4", // ungu
+    "#46f0f0", // cyan
+    "#f032e6", // magenta
+    "#bcf60c", // lime
+    "#008080", // teal
+    "#800000", // maroon
+    "#000075", // navy
+    "#ff4500", // orange red
+    "#00ffcc"  // neon
+];
 
-    return colors[Math.floor(Math.random() * colors.length)];
+let colorIndex = 0;
 }
 
 function getCategoryFromPath(path){
-    return path.split("/")[1];
+    return path.split("/")[1].toLowerCase().trim();
+}
+
+function getNextColor(){
+    const color = fixedColors[colorIndex % fixedColors.length];
+    colorIndex++;
+    return color;
 }
 
 function renderLegend(){
@@ -557,7 +573,7 @@ if(layerStore[key].url.toLowerCase().endsWith(".zip")){
     const category = getCategoryFromPath(key);
 
     if(!categoryColors[category]){
-        categoryColors[category] = getRandomColor();
+        categoryColors[category] = getNextColor();
         renderLegend();
     }
 
@@ -599,7 +615,7 @@ if(layerStore[key].url.toLowerCase().endsWith(".zip")){
             const category = getCategoryFromPath(key);
 
 if(!categoryColors[category]){
-    categoryColors[category] = getRandomColor();
+    categoryColors[category] = getNextColor();
     renderLegend(); // ⬅️ update legenda otomatis
 }
 
@@ -630,7 +646,7 @@ layer.eachLayer(l=>{
             const category = getCategoryFromPath(key);
 
 if(!categoryColors[category]){
-    categoryColors[category] = getRandomColor();
+    categoryColors[category] = getNextColor();
     renderLegend(); // ⬅️ update legenda otomatis
 }
 
