@@ -213,37 +213,20 @@ document.getElementById(tab.dataset.tab).classList.add("active");
 };
 });
     
-let categoryColors = {};
+let categoryColors = {
+    "Batimetri Mbes": "#e6194b",
+    "Batimetri Sbes": "#ffe119",
+    "Foto Udara UAV": "#3cb44b",
+    "GIS": "#4363d8",
+    "LiDAR Pesawat": "#f58231",
+    "LiDAR UAV": "#911eb4",
+    "Penetapan Batas": "#46f0f0"
+};
 
-function getRandomColor(){
-    const fixedColors = [
-    "#e6194b", // merah
-    "#3cb44b", // hijau
-    "#ffe119", // kuning
-    "#4363d8", // biru
-    "#f58231", // oranye
-    "#911eb4", // ungu
-    "#46f0f0", // cyan
-    "#f032e6", // magenta
-    "#bcf60c", // lime
-    "#008080", // teal
-    "#800000", // maroon
-    "#000075", // navy
-    "#ff4500", // orange red
-    "#00ffcc"  // neon
-];
-
-let colorIndex = 0;
 }
 
 function getCategoryFromPath(path){
-    return path.split("/")[1].toLowerCase().trim();
-}
-
-function getNextColor(){
-    const color = fixedColors[colorIndex % fixedColors.length];
-    colorIndex++;
-    return color;
+    return path.split("/")[1].toLowerCase().replace(/\s+/g,"_").trim();
 }
 
 function renderLegend(){
@@ -331,10 +314,7 @@ async function initLegend(){
 
     for(const cat of cats){
         if(cat.type !== "dir") continue;
-
-        if(!categoryColors[cat.name]){
-            categoryColors[cat.name] = getRandomColor();
-        }
+}
     }
 
     renderLegend();
@@ -572,11 +552,6 @@ if(layerStore[key].url.toLowerCase().endsWith(".zip")){
     // ✅ ambil kategori DI LUAR
     const category = getCategoryFromPath(key);
 
-    if(!categoryColors[category]){
-        categoryColors[category] = getNextColor();
-        renderLegend();
-    }
-
     // ✅ baru buat layer
     layer = L.geoJSON(geo,{
         style:{
@@ -613,11 +588,6 @@ if(layerStore[key].url.toLowerCase().endsWith(".zip")){
 
         layer.on("ready",()=>{
             const category = getCategoryFromPath(key);
-
-if(!categoryColors[category]){
-    categoryColors[category] = getNextColor();
-    renderLegend(); // ⬅️ update legenda otomatis
-}
 
 layer.eachLayer(l=>{
     if(l instanceof L.Marker) return;
@@ -964,7 +934,7 @@ async function downloadAll(key){
         console.error("Download TXT gagal:", e);
     }
 }
-initLegend();
+renderLegend();   // ✅ langsung tampil saat load
 loadStructure();
 </script>
 
