@@ -115,17 +115,6 @@ color:white;
 
 <input type="text" id="searchInput" placeholder="Cari file... (contoh: 2023, jalan, sulawesi)">
 <div id="searchResult" style="margin-bottom:15px;"></div>
-<div id="legend" style="
-    background:white;
-    padding:10px;
-    border-radius:8px;
-    margin-bottom:15px;
-    border:1px solid #ddd;
-">
-<b>Legenda</b>
-<div id="legendList" style="margin-top:8px;"></div>
-</div> 
-<div id="layerList"></div>
 
 </div>
 
@@ -153,6 +142,27 @@ const map = L.map('map', {
     minZoom: 5,     // tidak bisa zoom out lebih jauh dari Indonesia
     maxZoom: 18     // tetap bisa zoom in detail
 }).setView([-2.5,118],5);
+
+// ================= LEGENDA MAP =================
+const legendControl = L.control({ position: 'bottomleft' });
+
+legendControl.onAdd = function () {
+    const div = L.DomUtil.create('div');
+
+    div.style.background = "white";
+    div.style.padding = "10px";
+    div.style.borderRadius = "8px";
+    div.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
+    div.style.fontSize = "12px";
+    div.style.maxHeight = "200px";
+    div.style.overflowY = "auto";
+
+    div.innerHTML = "<b>Legenda</b><div id='legendList'></div>";
+
+    return div;
+};
+
+legendControl.addTo(map);
     
 // Basemap OSM (default)
 const osm = L.tileLayer(
@@ -206,10 +216,14 @@ document.getElementById(tab.dataset.tab).classList.add("active");
 let categoryColors = {};
 
 function getRandomColor(){
-    const r = Math.floor(Math.random()*156)+100;
-    const g = Math.floor(Math.random()*156)+100;
-    const b = Math.floor(Math.random()*156)+100;
-    return `rgb(${r},${g},${b})`;
+    const colors = [
+        "#e6194b","#3cb44b","#ffe119","#4363d8","#f58231",
+        "#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe",
+        "#008080","#e6beff","#9a6324","#fffac8","#800000",
+        "#aaffc3","#000075","#808000","#ff4500","#00ffcc"
+    ];
+
+    return colors[Math.floor(Math.random() * colors.length)];
 }
 
 function getCategoryFromPath(path){
@@ -218,6 +232,8 @@ function getCategoryFromPath(path){
 
 function renderLegend(){
     const legendList = document.getElementById("legendList");
+    if(!legendList) return;
+
     legendList.innerHTML = "";
 
     Object.keys(categoryColors).sort().forEach(category => {
@@ -245,7 +261,7 @@ function renderLegend(){
 
         legendList.appendChild(row);
     });
-}  
+} 
 let layerStore={};
 
 const searchInput = document.getElementById("searchInput");
@@ -293,6 +309,20 @@ if(layer){
         }
     }
 });
+
+async function initLegend(){
+    const cats = await fetchGitHub(ROOT);
+
+    for(const cat of cats){
+        if(cat.type !== "dir") continue;
+
+        if(!categoryColors[cat.name]){
+            categoryColors[cat.name] = getRandomColor();
+        }
+    }
+
+    renderLegend();
+}
     
 async function fetchGitHub(path){
 const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
@@ -918,6 +948,7 @@ async function downloadAll(key){
         console.error("Download TXT gagal:", e);
     }
 }
+initLegend();
 loadStructure();
 </script>
 
