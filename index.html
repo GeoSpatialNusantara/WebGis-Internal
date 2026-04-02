@@ -214,19 +214,17 @@ document.getElementById(tab.dataset.tab).classList.add("active");
 });
     
 let categoryColors = {
-    "Batimetri Mbes": "#e6194b",
-    "Batimetri Sbes": "#ffe119",
+    "Batimetri_ MBES": "#e6194b",
+    "Batimetri SBES": "#ffe119",
     "Foto Udara UAV": "#3cb44b",
     "GIS": "#4363d8",
     "LiDAR Pesawat": "#f58231",
-    "LiDAR UAV": "#911eb4",
+    "liDAR UAV": "#911eb4",
     "Penetapan Batas": "#46f0f0"
 };
 
-}
-
 function getCategoryFromPath(path){
-    return path.split("/")[1].toLowerCase().replace(/\s+/g,"_").trim();
+    return path.split("/")[1];
 }
 
 function renderLegend(){
@@ -253,7 +251,7 @@ function renderLegend(){
         box.style.border = "1px solid #999";
 
         const label = document.createElement("span");
-        label.innerText = formatLabel(category);
+        label.innerText = formatLabel(category).replace(/\b\w/g, c => c.toUpperCase());
 
         row.appendChild(box);
         row.appendChild(label);
@@ -614,11 +612,6 @@ layer.eachLayer(l=>{
 
         layer.on("ready",()=>{
             const category = getCategoryFromPath(key);
-
-if(!categoryColors[category]){
-    categoryColors[category] = getNextColor();
-    renderLegend(); // ⬅️ update legenda otomatis
-}
 
 layer.eachLayer(l=>{
     if(l instanceof L.Marker) return;
