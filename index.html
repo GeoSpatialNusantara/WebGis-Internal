@@ -313,18 +313,7 @@ if(layer){
         }
     }
 });
-
-async function initLegend(){
-    const cats = await fetchGitHub(ROOT);
-
-    for(const cat of cats){
-        if(cat.type !== "dir") continue;
-}
-    }
-
-    renderLegend();
-}
-    
+   
 async function fetchGitHub(path){
 const url=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
 const res=await fetch(url);
