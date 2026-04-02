@@ -421,10 +421,18 @@ const active=toggle.classList.contains("active");
 
 for(let key in layerStore){
 if(key.startsWith(path)){
-if(active) await loadLayer(key);
-else{
-if(layerStore[key].layer) map.removeLayer(layerStore[key].layer);
+if(active){
+    await loadLayer(key);
+}else{
+    if(layerStore[key].layer){
+        map.removeLayer(layerStore[key].layer);
+        layerStore[key].layer = null;   // 🔥 INI KUNCINYA
+    }
 
+    if(layerStore[key].marker){
+        map.removeLayer(layerStore[key].marker);
+        layerStore[key].marker = null;  // 🔥 biar marker tidak nyangkut
+    }
 }
 }
 }
@@ -523,10 +531,12 @@ marker.on("popupopen", function () {
 
 async function loadLayer(key){
     console.log("LOAD:", key, layerStore[key].url);
-    if(layerStore[key].layer){
+   if(layerStore[key].layer){
+    if(!map.hasLayer(layerStore[key].layer)){
         map.addLayer(layerStore[key].layer);
-        return;
     }
+    return;
+}
 
     let layer;
 
