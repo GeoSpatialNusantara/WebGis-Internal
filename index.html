@@ -20,7 +20,11 @@ body{margin:0;font-family:Arial}
 position:fixed;
 top:0;
 right:0;
-width:370px;
+
+width:auto;          /* ✅ fleksibel */
+min-width:240px;     /* ✅ minimum */
+max-width:320px;     /* ✅ maksimum */
+
 height:100%;
 background:#f4f4f4;
 box-shadow:-3px 0 10px rgba(0,0,0,.2);
@@ -28,6 +32,7 @@ transform:translateX(100%);
 transition:.3s;
 z-index:1000;
 overflow:hidden;
+padding:10px;
 }
 #sidebar.active{transform:translateX(0)}
 
@@ -95,7 +100,11 @@ border:1px solid #ddd;
 background:#2c7be5;
 color:white;
 }
-   
+
+#sidebar span {
+white-space: normal;
+word-break: break-word;
+}
 </style>
 </head>
 
@@ -204,10 +213,12 @@ L.control.layers(
 
 toggleBtn.onclick=()=>{
 sidebar.classList.toggle("active");
+
 if(sidebar.classList.contains("active")){
-toggleBtn.style.right="385px";
+    const width = sidebar.offsetWidth;   // ✅ ambil lebar real
+    toggleBtn.style.right = (width + 15) + "px";
 }else{
-toggleBtn.style.right="15px";
+    toggleBtn.style.right="15px";
 }
 };
 
