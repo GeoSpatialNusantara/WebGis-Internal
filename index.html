@@ -107,8 +107,14 @@ word-break: break-word;
 }
 
 #logoTop{
-max-height:60px;
-height:auto;
+position:fixed;
+top:10px;
+left:50%;
+transform:translateX(-50%);
+z-index:2000;
+
+height:50px;          /* bisa diubah sesuai kebutuhan */
+pointer-events:none;  /* biar tidak ganggu klik map */
 }
     
 </style>
