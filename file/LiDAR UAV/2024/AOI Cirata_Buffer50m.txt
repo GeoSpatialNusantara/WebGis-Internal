@@ -4,6 +4,7 @@
 "PROVINSI"	: "JAWA BARAT"
 "KABUPATEN"	: "PURWAKARTA"
 "VOLUME (ha)"	: "-"
+"AKURASI"
 "H (CE90) m"	: "0.09"
 "V (LE90) m"	: "0.033"
 "GSD"	cm	: "6"
